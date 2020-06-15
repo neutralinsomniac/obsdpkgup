@@ -44,7 +44,7 @@ func parsePkgInfoToPkgList(pkginfo string) pkgList {
 			if !matched {
 				panic("couldn't find version in pkg: " + pkgFile)
 			}
-			pkgName := strings.Join(pkgFileSlice[:len(pkgFileSlice)], "-")
+			pkgName := strings.Join(pkgFileSlice, "-")
 			pkgList[pkgName] = append(pkgList[pkgName], pkgVersion)
 		}
 	}
@@ -81,7 +81,7 @@ func parseIndexToPkgList(index string) pkgList {
 			if !matched {
 				panic("couldn't find version in pkg: " + pkgFile)
 			}
-			pkgName := strings.Join(pkgFileSlice[:len(pkgFileSlice)], "-")
+			pkgName := strings.Join(pkgFileSlice, "-")
 			pkgList[pkgName] = append(pkgList[pkgName], pkgVersion)
 		}
 	}
