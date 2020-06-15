@@ -88,6 +88,35 @@ func parseIndexToPkgList(index string) pkgList {
 	return pkgList
 }
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	} else {
+		return b
+	}
+}
+
+func compareVersionString(v1, v2 string) int {
+	v1s := strings.Split(v1, ".")
+	v2s := strings.Split(v2, ".")
+	min := min(len(v1s), len(v2s))
+	for i := 0; i < min; i++ {
+		if v1s[i] > v2s[i] {
+			return -1
+		} else if v1[i] < v2[i] {
+			return 1
+		}
+	}
+
+	if len(v1s) > len(v2s) {
+		return -1
+	} else if len(v1s) < len(v2s) {
+		return 1
+	} else {
+		return 0
+	}
+}
+
 func main() {
 	foundUpdate := false
 
@@ -129,7 +158,7 @@ func main() {
 		for _, installedVersion := range installedVersions {
 			// if there's only one possible package to choose from, check it against installed
 			if len(allPkgs[name]) == 1 {
-				if allPkgs[name][0] != installedVersion {
+				if compareVersionString(installedVersion, allPkgs[name][0]) > 0 {
 					foundUpdate = true
 					fmt.Printf("%s-%s -> %s-%s\n", name, installedVersion, name, allPkgs[name][0])
 				}
@@ -151,7 +180,7 @@ func main() {
 					}
 				}
 
-				if bestMatch != installedVersion {
+				if compareVersionString(installedVersion, bestMatch) > 0 {
 					foundUpdate = true
 					fmt.Printf("%s-%s -> %s-%s\n", name, installedVersion, name, bestMatch)
 				}
