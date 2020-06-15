@@ -26,9 +26,8 @@ func parsePkgInfoToPkgList(pkginfo string) pkgList {
 
 	for _, line := range strings.Split(pkginfo, "\n") {
 		if len(line) > 1 {
-			pkgFile := strings.Fields(line)[0]
 			// pkgFile: "x-y-1.2.3p4-flavor1-flavor2"
-			pkgFileSlice := strings.Split(pkgFile, "-")
+			pkgFileSlice := strings.Split(line, "-")
 			// pkgFileSlice: "[x, y, 1.2.3p4, flavor1, flavor2]"
 			// walk backwards until we find the version
 			pkgVersion := ""
@@ -42,7 +41,7 @@ func parsePkgInfoToPkgList(pkginfo string) pkgList {
 				}
 			}
 			if !matched {
-				panic("couldn't find version in pkg: " + pkgFile)
+				panic("couldn't find version in pkg: " + line)
 			}
 			pkgName := strings.Join(pkgFileSlice, "-")
 			pkgList[pkgName] = append(pkgList[pkgName], pkgVersion)
@@ -158,7 +157,7 @@ func main() {
 	body := string(bodyBytes)
 
 	allPkgs := parseIndexToPkgList(body)
-	cmd = exec.Command("pkg_info")
+	cmd = exec.Command("ls", "-1", "/var/db/pkg/")
 	output, err = cmd.Output()
 	check(err)
 	installedPkgs := parsePkgInfoToPkgList(string(output))
@@ -166,7 +165,7 @@ func main() {
 	for name, installedVersions := range installedPkgs {
 		// if package name doesn't exist in remote, skip it
 		if len(allPkgs[name]) == 0 {
-			if !strings.HasSuffix(name, "firmware") {
+			if !strings.HasSuffix(name, "firmware") && name != "quirks" {
 				fmt.Printf("WARN: %s not in remote repo\n", name)
 			}
 			continue
