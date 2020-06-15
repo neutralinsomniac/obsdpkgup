@@ -89,6 +89,8 @@ func parseIndexToPkgList(index string) pkgList {
 }
 
 func main() {
+	foundUpdate := false
+
 	installurlBytes, err := ioutil.ReadFile("/etc/installurl")
 	check(err)
 
@@ -128,6 +130,7 @@ func main() {
 			// if there's only one possible package to choose from, check it against installed
 			if len(allPkgs[name]) == 1 {
 				if allPkgs[name][0] != installedVersion {
+					foundUpdate = true
 					fmt.Printf("%s-%s -> %s-%s\n", name, installedVersion, name, allPkgs[name][0])
 				}
 				continue
@@ -149,9 +152,14 @@ func main() {
 				}
 
 				if bestMatch != installedVersion {
+					foundUpdate = true
 					fmt.Printf("%s-%s -> %s-%s\n", name, installedVersion, name, bestMatch)
 				}
 			}
 		}
+	}
+
+	if !foundUpdate {
+		fmt.Println("up to date")
 	}
 }
