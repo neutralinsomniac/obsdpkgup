@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-type pkgList map[string]string
+type pkgList map[string][]string
 
 func check(e error) {
 	if e != nil {
@@ -45,7 +45,7 @@ func parsePkgInfoToPkgList(pkginfo string) pkgList {
 				panic("couldn't find version in pkg: " + pkgFile)
 			}
 			pkgName := strings.Join(pkgFileSlice[:len(pkgFileSlice)], "-")
-			pkgList[pkgName] = pkgVersion
+			pkgList[pkgName] = append(pkgList[pkgName], pkgVersion)
 		}
 	}
 	return pkgList
@@ -82,7 +82,7 @@ func parseIndexToPkgList(index string) pkgList {
 				panic("couldn't find version in pkg: " + pkgFile)
 			}
 			pkgName := strings.Join(pkgFileSlice[:len(pkgFileSlice)], "-")
-			pkgList[pkgName] = pkgVersion
+			pkgList[pkgName] = append(pkgList[pkgName], pkgVersion)
 		}
 	}
 	return pkgList
@@ -114,7 +114,8 @@ func main() {
 	check(err)
 	installedPkgs := parsePkgInfoToPkgList(string(output))
 
-	for name, version := range installedPkgs {
+	for name, installedVersions := range installedPkgs {
+		// if package name doesn't exit in remote, skip it
 		if len(allPkgs[name]) == 0 {
 			if !strings.HasSuffix(name, "firmware") {
 				fmt.Printf("WARN: %s not in remote repo\n", name)
@@ -122,8 +123,35 @@ func main() {
 			continue
 		}
 
-		if allPkgs[name] != version {
-			fmt.Printf("%s-%s -> %s-%s\n", name, version, name, allPkgs[name])
+		// check all versions to find the "closest" match
+		for _, installedVersion := range installedVersions {
+			// if there's only one possible package to choose from, check it against installed
+			if len(allPkgs[name]) == 1 {
+				if allPkgs[name][0] != installedVersion {
+					fmt.Printf("%s-%s -> %s-%s\n", name, installedVersion, name, allPkgs[name][0])
+				}
+				continue
+			} else {
+				// OK, gotta figure out our "best" version match
+				bestMatch := ""
+				bestMatchLen := -1
+			NEXTVERSION:
+				for _, remoteVersion := range allPkgs[name] {
+					for i, _ := range installedVersion {
+						if remoteVersion[i] != installedVersion[i] {
+							continue NEXTVERSION
+						}
+						if i > bestMatchLen {
+							bestMatchLen = i
+							bestMatch = remoteVersion
+						}
+					}
+				}
+
+				if bestMatch != installedVersion {
+					fmt.Printf("%s-%s -> %s-%s\n", name, installedVersion, name, bestMatch)
+				}
+			}
 		}
 	}
 }
