@@ -146,7 +146,7 @@ func main() {
 	installedPkgs := parsePkgInfoToPkgList(string(output))
 
 	for name, installedVersions := range installedPkgs {
-		// if package name doesn't exit in remote, skip it
+		// if package name doesn't exist in remote, skip it
 		if len(allPkgs[name]) == 0 {
 			if !strings.HasSuffix(name, "firmware") {
 				fmt.Printf("WARN: %s not in remote repo\n", name)
