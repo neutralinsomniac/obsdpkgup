@@ -126,7 +126,25 @@ func main() {
 	installurl := string(installurlBytes)
 	installurl = strings.TrimSpace(installurl)
 
-	resp, err := http.Get(fmt.Sprintf("%s/snapshots/packages/amd64/index.txt", installurl))
+	cmd := exec.Command("sysctl", "-n", "kern.version")
+	output, err := cmd.Output()
+	check(err)
+
+	openBSDVersion := ""
+	if strings.Contains(string(output), "-current") {
+		openBSDVersion = "snapshots"
+	} else {
+		openBSDVersion = string(output[8:11])
+	}
+
+	arch := ""
+	cmd = exec.Command("uname", "-m")
+	output, err = cmd.Output()
+	check(err)
+
+	arch = strings.TrimSpace(string(output))
+
+	resp, err := http.Get(fmt.Sprintf("%s/%s/packages/%s/index.txt", installurl, openBSDVersion, arch))
 	check(err)
 	defer resp.Body.Close()
 
@@ -140,8 +158,8 @@ func main() {
 	body := string(bodyBytes)
 
 	allPkgs := parseIndexToPkgList(body)
-	cmd := exec.Command("pkg_info")
-	output, err := cmd.Output()
+	cmd = exec.Command("pkg_info")
+	output, err = cmd.Output()
 	check(err)
 	installedPkgs := parsePkgInfoToPkgList(string(output))
 
