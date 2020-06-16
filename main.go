@@ -203,7 +203,7 @@ func main() {
 
 				if compareVersionString(installedVersion.version, bestVersionMatch.version) > 0 {
 					updateList[name] = true
-					fmt.Printf("%s -> %s\n", installedVersion.fullName, bestVersionMatch.version)
+					fmt.Printf("%s -> %s\n", installedVersion.fullName, bestVersionMatch.fullName)
 				}
 			}
 		}
