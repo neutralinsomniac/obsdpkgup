@@ -166,59 +166,50 @@ func main() {
 	}
 	sort.Strings(sortedInstalledPkgs)
 
+NEXTPACKAGE:
 	for _, name := range sortedInstalledPkgs {
 		installedVersions := installedPkgs[name]
 		// if package name doesn't exist in remote, skip it
 		if _, ok := allPkgs[name]; !ok {
-			/*if !strings.HasSuffix(name, "firmware") && name != "quirks" {
-				fmt.Printf("WARN: %s not in remote repo\n", name)
-			}*/
 			continue
 		}
 
 		// check all versions to find the "closest" match
 		for _, installedVersion := range installedVersions {
-			// if there's only one possible package to choose from, check it against installed
-			if len(allPkgs[name]) == 1 {
-				if compareVersionString(installedVersion.version, allPkgs[name][0].version) > 0 {
-					updateList[name] = true
-					fmt.Fprintf(os.Stderr, "%s->%s", installedVersion.fullName, allPkgs[name][0].version)
-					if installedVersion.flavor != "" {
-						fmt.Fprintf(os.Stderr, "-%s", installedVersion.flavor)
-					}
-					fmt.Fprintf(os.Stderr, "\n")
+			// figure out our "best" version match
+			var bestVersionMatch PkgVer
+			bestMatchLen := -1
+		NEXTVERSION:
+			for _, remoteVersion := range allPkgs[name] {
+				// verify flavor match first
+				if remoteVersion.flavor != installedVersion.flavor {
+					continue NEXTVERSION
 				}
-				continue
-			} else {
-				// OK, gotta figure out our "best" version match
-				var bestVersionMatch PkgVer
-				bestMatchLen := -1
-			NEXTVERSION:
-				for _, remoteVersion := range allPkgs[name] {
-					// verify flavor match first
-					if remoteVersion.flavor != installedVersion.flavor {
+				// now find the version that matches our current version the closest
+				for i := 0; i < min(len(remoteVersion.version), len(installedVersion.version)); i++ {
+					if remoteVersion.version[i] != installedVersion.version[i] {
 						continue NEXTVERSION
 					}
-					// now find the version that matches our current version the closest
-					for i := 0; i < min(len(remoteVersion.version), len(installedVersion.version)); i++ {
-						if remoteVersion.version[i] != installedVersion.version[i] {
-							continue NEXTVERSION
-						}
-						if i > bestMatchLen {
-							bestMatchLen = i
-							bestVersionMatch = remoteVersion
-						}
+					if i > bestMatchLen {
+						bestMatchLen = i
+						bestVersionMatch = remoteVersion
 					}
 				}
+			}
 
-				if compareVersionString(installedVersion.version, bestVersionMatch.version) > 0 {
-					updateList[name] = true
-					fmt.Fprintf(os.Stderr, "%s->%s", installedVersion.fullName, bestVersionMatch.version)
-					if installedVersion.flavor != "" {
-						fmt.Fprintf(os.Stderr, "-%s", installedVersion.flavor)
-					}
-					fmt.Fprintf(os.Stderr, "\n")
+			// we didn't find a match :<
+			if bestVersionMatch.fullName == "" {
+				fmt.Fprintf(os.Stderr, "WARN: couldn't find a version candidate for %s\n", installedVersion.fullName)
+				continue NEXTPACKAGE
+			}
+
+			if compareVersionString(installedVersion.version, bestVersionMatch.version) > 0 {
+				updateList[name] = true
+				fmt.Fprintf(os.Stderr, "%s->%s", installedVersion.fullName, bestVersionMatch.version)
+				if installedVersion.flavor != "" {
+					fmt.Fprintf(os.Stderr, "-%s", installedVersion.flavor)
 				}
+				fmt.Fprintf(os.Stderr, "\n")
 			}
 		}
 	}
