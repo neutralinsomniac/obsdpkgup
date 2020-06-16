@@ -1,7 +1,7 @@
 # obsdpkgup
 
 Install:
-`go get -u github.com/neutralinsomniac/obsdpkgup`
+`GO111MODULE=on go get -u github.com/neutralinsomniac/obsdpkgup`
 
 Run:
 `obsdpkgup`
