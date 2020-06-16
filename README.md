@@ -5,3 +5,6 @@ Install:
 
 Run:
 `obsdpkgup`
+
+Cron mode (no output when everything is up-to-date):
+`obsdpkgup -c`
