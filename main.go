@@ -177,7 +177,11 @@ func main() {
 			if len(allPkgs[name]) == 1 {
 				if compareVersionString(installedVersion.version, allPkgs[name][0].version) > 0 {
 					updateList[name] = true
-					fmt.Fprintf(os.Stderr, "%s->%s\n", installedVersion.fullName, allPkgs[name][0].version)
+					fmt.Fprintf(os.Stderr, "%s->%s", installedVersion.fullName, allPkgs[name][0].version)
+					if installedVersion.flavor != "" {
+						fmt.Fprintf(os.Stderr, "-%s", installedVersion.flavor)
+					}
+					fmt.Fprintf(os.Stderr, "\n")
 				}
 				continue
 			} else {
@@ -204,7 +208,11 @@ func main() {
 
 				if compareVersionString(installedVersion.version, bestVersionMatch.version) > 0 {
 					updateList[name] = true
-					fmt.Fprintf(os.Stderr, "%s->%s\n", installedVersion.fullName, bestVersionMatch.version)
+					fmt.Fprintf(os.Stderr, "%s->%s", installedVersion.fullName, bestVersionMatch.version)
+					if installedVersion.flavor != "" {
+						fmt.Fprintf(os.Stderr, "-%s", installedVersion.flavor)
+					}
+					fmt.Fprintf(os.Stderr, "\n")
 				}
 			}
 		}
