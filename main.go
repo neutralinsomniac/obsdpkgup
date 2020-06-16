@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -110,6 +111,11 @@ func compareVersionString(v1, v2 string) int {
 }
 
 func main() {
+	var cronMode bool
+
+	flag.BoolVar(&cronMode, "c", false, "Cron mode")
+	flag.Parse()
+
 	updateList := make(map[string]bool) // this is used as a set
 
 	installurlBytes, err := ioutil.ReadFile("/etc/installurl")
@@ -204,7 +210,9 @@ func main() {
 	}
 
 	if len(updateList) == 0 {
-		fmt.Println("up to date")
+		if !cronMode {
+			fmt.Println("up to date")
+		}
 	} else {
 		fmt.Println("to upgrade:")
 		fmt.Printf("# pkg_add -u")
