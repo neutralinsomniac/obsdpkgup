@@ -59,7 +59,6 @@ func parsePkgInfoToPkgList(pkginfo string) PkgList {
 	for _, line := range strings.Split(pkginfo, "\n") {
 		if len(line) > 1 {
 			name, pkgVer := convertPkgStringToPkgVer(line)
-			// pkgFile: "x-y-1.2.3p4-flavor1-flavor2"
 			pkgList[name] = append(pkgList[name], pkgVer)
 		}
 	}
