@@ -96,7 +96,7 @@ func compareVersionString(v1, v2 string) int {
 	for i := 0; i < min; i++ {
 		if v1s[i] > v2s[i] {
 			return -1
-		} else if v1[i] < v2[i] {
+		} else if v1s[i] < v2s[i] {
 			return 1
 		}
 	}
