@@ -123,8 +123,7 @@ func main() {
 	installurlBytes, err := ioutil.ReadFile("/etc/installurl")
 	check(err)
 
-	installurl := string(installurlBytes)
-	installurl = strings.TrimSpace(installurl)
+	installurl := strings.TrimSpace(string(installurlBytes))
 
 	cmd := exec.Command("sysctl", "-n", "kern.version")
 	output, err := cmd.Output()
@@ -137,12 +136,11 @@ func main() {
 		openBSDVersion = string(output[8:11])
 	}
 
-	arch := ""
 	cmd = exec.Command("uname", "-m")
 	output, err = cmd.Output()
 	check(err)
 
-	arch = strings.TrimSpace(string(output))
+	arch := strings.TrimSpace(string(output))
 
 	resp, err := http.Get(fmt.Sprintf("%s/%s/packages/%s/index.txt", installurl, openBSDVersion, arch))
 	check(err)
