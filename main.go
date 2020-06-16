@@ -9,7 +9,14 @@ import (
 	"strings"
 )
 
-type pkgList map[string][]string
+type PkgVer struct {
+	fullName string
+	version  string
+	flavor   string
+}
+
+// short pkg name -> []PkgVer
+type PkgList map[string][]PkgVer
 
 func check(e error) {
 	if e != nil {
@@ -21,67 +28,53 @@ func remove(slice []string, s int) []string {
 	return append(slice[:s], slice[s+1:]...)
 }
 
-func parsePkgInfoToPkgList(pkginfo string) pkgList {
-	pkgList := make(pkgList)
+// returns: package shortname, pkgVer struct
+func convertPkgStringToPkgVer(pkgStr string) (string, PkgVer) {
+	pkgFileSlice := strings.Split(pkgStr, "-")
+	// pkgFileSlice: "[x, y, 1.2.3p4, flavor1, flavor2]"
+	// walk backwards until we find the version
+	pkgVersion := ""
+	matched := false
+	for i := len(pkgFileSlice) - 1; i >= 0; i-- {
+		matched, _ = regexp.MatchString(`^[0-9\.]+.*$`, pkgFileSlice[i])
+		// found version!
+		if matched {
+			pkgVersion = pkgFileSlice[i]
+			flavor := ""
+			if len(pkgFileSlice[i:]) > 1 {
+				flavor = strings.Join(pkgFileSlice[i+1:], "-")
+			}
+			return strings.Join(pkgFileSlice[:i], "-"), PkgVer{fullName: pkgStr, version: pkgVersion, flavor: flavor}
+		}
+	}
+	panic("couldn't find version in pkg: " + pkgStr)
+}
+
+func parsePkgInfoToPkgList(pkginfo string) PkgList {
+	pkgList := make(PkgList)
 
 	for _, line := range strings.Split(pkginfo, "\n") {
 		if len(line) > 1 {
+			name, pkgVer := convertPkgStringToPkgVer(line)
 			// pkgFile: "x-y-1.2.3p4-flavor1-flavor2"
-			pkgFileSlice := strings.Split(line, "-")
-			// pkgFileSlice: "[x, y, 1.2.3p4, flavor1, flavor2]"
-			// walk backwards until we find the version
-			pkgVersion := ""
-			matched := false
-			for i := len(pkgFileSlice) - 1; i >= 0; i-- {
-				matched, _ = regexp.MatchString(`^[0-9\.]+.*$`, pkgFileSlice[i])
-				if matched {
-					pkgVersion = pkgFileSlice[i]
-					pkgFileSlice = remove(pkgFileSlice, i)
-					break
-				}
-			}
-			if !matched {
-				panic("couldn't find version in pkg: " + line)
-			}
-			pkgName := strings.Join(pkgFileSlice, "-")
-			pkgList[pkgName] = append(pkgList[pkgName], pkgVersion)
+			pkgList[name] = append(pkgList[name], pkgVer)
 		}
 	}
 	return pkgList
 }
 
-func parseIndexToPkgList(index string) pkgList {
-	pkgList := make(pkgList)
+func parseIndexToPkgList(index string) PkgList {
+	pkgList := make(PkgList)
 
 	for _, line := range strings.Split(index, "\n") {
 		if len(line) > 1 {
 			tmp := strings.Fields(line)
 			pkgFile := tmp[len(tmp)-1]
-			if pkgFile[len(pkgFile)-4:] != ".tgz" {
+			if !strings.HasSuffix(pkgFile, ".tgz") {
 				continue
 			}
-			// pkgFile: "x-y-1.2.3p4-flavor1-flavor2.tgz"
-			pkgFileSlice := strings.Split(pkgFile, "-")
-			// pkgFileSlice: "[x, y, 1.2.3p4, flavor1, flavor2.tgz]"
-			lastItem := pkgFileSlice[len(pkgFileSlice)-1]
-			pkgFileSlice[len(pkgFileSlice)-1] = lastItem[:len(lastItem)-4]
-			// pkgFileSlice: "[x, y, 1.2.3p4, flavor1, flavor2]"
-			// walk backwards until we find the version
-			pkgVersion := ""
-			matched := false
-			for i := len(pkgFileSlice) - 1; i >= 0; i-- {
-				matched, _ = regexp.MatchString(`^[0-9\.]+.*$`, pkgFileSlice[i])
-				if matched {
-					pkgVersion = pkgFileSlice[i]
-					pkgFileSlice = remove(pkgFileSlice, i)
-					break
-				}
-			}
-			if !matched {
-				panic("couldn't find version in pkg: " + pkgFile)
-			}
-			pkgName := strings.Join(pkgFileSlice, "-")
-			pkgList[pkgName] = append(pkgList[pkgName], pkgVersion)
+			name, pkgVer := convertPkgStringToPkgVer(pkgFile[:len(pkgFile)-4])
+			pkgList[name] = append(pkgList[name], pkgVer)
 		}
 	}
 	return pkgList
@@ -164,7 +157,7 @@ func main() {
 
 	for name, installedVersions := range installedPkgs {
 		// if package name doesn't exist in remote, skip it
-		if len(allPkgs[name]) == 0 {
+		if _, ok := allPkgs[name]; !ok {
 			if !strings.HasSuffix(name, "firmware") && name != "quirks" {
 				fmt.Printf("WARN: %s not in remote repo\n", name)
 			}
@@ -175,31 +168,36 @@ func main() {
 		for _, installedVersion := range installedVersions {
 			// if there's only one possible package to choose from, check it against installed
 			if len(allPkgs[name]) == 1 {
-				if compareVersionString(installedVersion, allPkgs[name][0]) > 0 {
+				if compareVersionString(installedVersion.version, allPkgs[name][0].version) > 0 {
 					foundUpdate = true
-					fmt.Printf("%s-%s -> %s-%s\n", name, installedVersion, name, allPkgs[name][0])
+					fmt.Printf("%s -> %s\n", installedVersion.fullName, allPkgs[name][0].fullName)
 				}
 				continue
 			} else {
 				// OK, gotta figure out our "best" version match
-				bestMatch := ""
+				var bestVersionMatch PkgVer
 				bestMatchLen := -1
 			NEXTVERSION:
 				for _, remoteVersion := range allPkgs[name] {
-					for i, _ := range installedVersion {
-						if remoteVersion[i] != installedVersion[i] {
+					// verify flavor match first
+					if remoteVersion.flavor != installedVersion.flavor {
+						continue NEXTVERSION
+					}
+					// now find the version that matches our current version the closest
+					for i := 0; i < min(len(remoteVersion.version), len(installedVersion.version)); i++ {
+						if remoteVersion.version[i] != installedVersion.version[i] {
 							continue NEXTVERSION
 						}
 						if i > bestMatchLen {
 							bestMatchLen = i
-							bestMatch = remoteVersion
+							bestVersionMatch = remoteVersion
 						}
 					}
 				}
 
-				if compareVersionString(installedVersion, bestMatch) > 0 {
+				if compareVersionString(installedVersion.version, bestVersionMatch.version) > 0 {
 					foundUpdate = true
-					fmt.Printf("%s-%s -> %s-%s\n", name, installedVersion, name, bestMatch)
+					fmt.Printf("%s -> %s\n", installedVersion.fullName, bestVersionMatch.version)
 				}
 			}
 		}
