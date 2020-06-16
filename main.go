@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -176,7 +177,7 @@ func main() {
 			if len(allPkgs[name]) == 1 {
 				if compareVersionString(installedVersion.version, allPkgs[name][0].version) > 0 {
 					updateList[name] = true
-					fmt.Printf("%s -> %s\n", installedVersion.fullName, allPkgs[name][0].fullName)
+					fmt.Fprintf(os.Stderr, "%s -> %s\n", installedVersion.fullName, allPkgs[name][0].fullName)
 				}
 				continue
 			} else {
@@ -203,7 +204,7 @@ func main() {
 
 				if compareVersionString(installedVersion.version, bestVersionMatch.version) > 0 {
 					updateList[name] = true
-					fmt.Printf("%s -> %s\n", installedVersion.fullName, bestVersionMatch.fullName)
+					fmt.Fprintf(os.Stderr, "%s -> %s\n", installedVersion.fullName, bestVersionMatch.fullName)
 				}
 			}
 		}
@@ -211,14 +212,14 @@ func main() {
 
 	if len(updateList) == 0 {
 		if !cronMode {
-			fmt.Println("up to date")
+			fmt.Fprintf(os.Stderr, "up to date\n")
 		}
 	} else {
-		fmt.Println("to upgrade:")
-		fmt.Printf("# pkg_add -u")
+		fmt.Fprintf(os.Stderr, "to upgrade:\n")
+		fmt.Printf("pkg_add -u")
 		for p, _ := range updateList {
 			fmt.Printf(" %s", p)
 		}
-		fmt.Println("")
+		fmt.Printf("\n")
 	}
 }
