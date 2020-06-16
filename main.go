@@ -211,5 +211,6 @@ func main() {
 		for p, _ := range updateList {
 			fmt.Printf(" %s", p)
 		}
+		fmt.Println("")
 	}
 }
