@@ -110,7 +110,7 @@ func compareVersionString(v1, v2 string) int {
 }
 
 func main() {
-	foundUpdate := false
+	updateList := make(map[string]bool) // this is used as a set
 
 	installurlBytes, err := ioutil.ReadFile("/etc/installurl")
 	check(err)
@@ -169,7 +169,7 @@ func main() {
 			// if there's only one possible package to choose from, check it against installed
 			if len(allPkgs[name]) == 1 {
 				if compareVersionString(installedVersion.version, allPkgs[name][0].version) > 0 {
-					foundUpdate = true
+					updateList[name] = true
 					fmt.Printf("%s -> %s\n", installedVersion.fullName, allPkgs[name][0].fullName)
 				}
 				continue
@@ -196,14 +196,20 @@ func main() {
 				}
 
 				if compareVersionString(installedVersion.version, bestVersionMatch.version) > 0 {
-					foundUpdate = true
+					updateList[name] = true
 					fmt.Printf("%s -> %s\n", installedVersion.fullName, bestVersionMatch.version)
 				}
 			}
 		}
 	}
 
-	if !foundUpdate {
+	if len(updateList) == 0 {
 		fmt.Println("up to date")
+	} else {
+		fmt.Println("to upgrade:")
+		fmt.Printf("# pkg_add -u")
+		for p, _ := range updateList {
+			fmt.Printf(" %s", p)
+		}
 	}
 }
