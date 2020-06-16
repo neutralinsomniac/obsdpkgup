@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -160,9 +161,16 @@ func main() {
 	cmd = exec.Command("ls", "-1", "/var/db/pkg/")
 	output, err = cmd.Output()
 	check(err)
-	installedPkgs := parsePkgInfoToPkgList(string(output))
 
-	for name, installedVersions := range installedPkgs {
+	installedPkgs := parsePkgInfoToPkgList(string(output))
+	var sortedInstalledPkgs []string
+	for k := range installedPkgs {
+		sortedInstalledPkgs = append(sortedInstalledPkgs, k)
+	}
+	sort.Strings(sortedInstalledPkgs)
+
+	for _, name := range sortedInstalledPkgs {
+		installedVersions := installedPkgs[name]
 		// if package name doesn't exist in remote, skip it
 		if _, ok := allPkgs[name]; !ok {
 			/*if !strings.HasSuffix(name, "firmware") && name != "quirks" {
@@ -225,7 +233,12 @@ func main() {
 	} else {
 		fmt.Fprintf(os.Stderr, "to upgrade:\n")
 		fmt.Printf("pkg_add -u")
-		for p, _ := range updateList {
+		var sortedUpdates []string
+		for k := range updateList {
+			sortedUpdates = append(sortedUpdates, k)
+		}
+		sort.Strings(sortedUpdates)
+		for _, p := range sortedUpdates {
 			fmt.Printf(" %s", p)
 		}
 		fmt.Printf("\n")
