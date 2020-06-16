@@ -158,9 +158,9 @@ func main() {
 	for name, installedVersions := range installedPkgs {
 		// if package name doesn't exist in remote, skip it
 		if _, ok := allPkgs[name]; !ok {
-			if !strings.HasSuffix(name, "firmware") && name != "quirks" {
+			/*if !strings.HasSuffix(name, "firmware") && name != "quirks" {
 				fmt.Printf("WARN: %s not in remote repo\n", name)
-			}
+			}*/
 			continue
 		}
 
