@@ -1,6 +1,9 @@
 package main
 
 import (
+	"compress/gzip"
+	"crypto/sha256"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -17,6 +20,7 @@ type PkgVer struct {
 	fullName string
 	version  string
 	flavor   string
+	hash     string
 }
 
 // short pkg name -> []PkgVer
@@ -57,9 +61,15 @@ func convertPkgStringToPkgVer(pkgStr string) (string, PkgVer) {
 func parsePkgInfoToPkgList(pkginfo string) PkgList {
 	pkgList := make(PkgList)
 
-	for _, line := range strings.Split(pkginfo, "\n") {
-		if len(line) > 1 {
-			name, pkgVer := convertPkgStringToPkgVer(line)
+	for _, pkg := range strings.Split(pkginfo, "\n") {
+		if len(pkg) > 1 {
+			dat, err := ioutil.ReadFile(fmt.Sprintf("/var/db/pkg/%s/+CONTENTS", pkg))
+			check(err)
+
+			name, pkgVer := convertPkgStringToPkgVer(pkg)
+			sha256sum := sha256.Sum256(dat)
+			hash := base64.StdEncoding.EncodeToString(sha256sum[:])
+			pkgVer.hash = hash
 			pkgList[name] = append(pkgList[name], pkgVer)
 		}
 	}
@@ -80,6 +90,26 @@ func parseIndexToPkgList(index string) PkgList {
 			pkgList[name] = append(pkgList[name], pkgVer)
 		}
 	}
+	return pkgList
+}
+
+func parseObsdPkgUpList(pkgup string) PkgList {
+	pkgList := make(PkgList)
+
+	for _, line := range strings.Split(pkgup, "\n") {
+		if len(line) > 1 {
+			tmp := strings.Fields(line)
+			pkgFile := tmp[0]
+			if !strings.HasSuffix(pkgFile, ".tgz") {
+				continue
+			}
+			hash := tmp[1]
+			name, pkgVer := convertPkgStringToPkgVer(pkgFile[:len(pkgFile)-4])
+			pkgVer.hash = hash
+			pkgList[name] = append(pkgList[name], pkgVer)
+		}
+	}
+
 	return pkgList
 }
 
@@ -150,20 +180,43 @@ func main() {
 
 	arch := strings.TrimSpace(string(output))
 
-	resp, err := http.Get(fmt.Sprintf("%s/%s/packages/%s/index.txt", installurl, openBSDVersion, arch))
+	var allPkgs PkgList
+
+	resp, err := http.Get(fmt.Sprintf("%s/%s/packages/%s/index.pkgup.gz", installurl, openBSDVersion, arch))
 	check(err)
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	switch resp.StatusCode {
+	case 200:
+		// grab body
+		fmt.Fprintf(os.Stderr, "Using pkgup index")
+		r, err := gzip.NewReader(resp.Body)
+		check(err)
+		bodyBytes, err := ioutil.ReadAll(r)
+		check(err)
+		allPkgs = parseObsdPkgUpList(string(bodyBytes))
+	case 404:
+		// do nothing
+	default:
 		panic(fmt.Sprintf("unexpected response: %d", resp.StatusCode))
 	}
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	check(err)
+	// if we didn't find the "new style" package list yet, fallback to old style
+	if len(allPkgs) == 0 {
+		resp, err = http.Get(fmt.Sprintf("%s/%s/packages/%s/index.txt", installurl, openBSDVersion, arch))
+		check(err)
+		defer resp.Body.Close()
 
-	body := string(bodyBytes)
+		if resp.StatusCode != 200 {
+			panic(fmt.Sprintf("unexpected response: %d", resp.StatusCode))
+		}
 
-	allPkgs := parseIndexToPkgList(body)
+		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		check(err)
+
+		allPkgs = parseIndexToPkgList(string(bodyBytes))
+	}
+
 	cmd = exec.Command("ls", "-1", "/var/db/pkg/")
 	output, err = cmd.Output()
 	check(err)
@@ -218,13 +271,27 @@ NEXTPACKAGE:
 				continue NEXTPACKAGE
 			}
 
-			if compareVersionString(installedVersion.version, bestVersionMatch.version) > 0 {
+			versionComparisonResult := compareVersionString(installedVersion.version, bestVersionMatch.version)
+
+			switch {
+			case versionComparisonResult > 0:
+				// version was changed; straight upgrade
 				updateList[name] = true
 				fmt.Fprintf(os.Stderr, "%s->%s", installedVersion.fullName, bestVersionMatch.version)
 				if installedVersion.flavor != "" {
 					fmt.Fprintf(os.Stderr, "-%s", installedVersion.flavor)
 				}
 				fmt.Fprintf(os.Stderr, "\n")
+			case versionComparisonResult == 0:
+				// version is the same; check sha
+				if bestVersionMatch.hash != "" && installedVersion.hash != bestVersionMatch.hash {
+					updateList[name] = true
+					fmt.Fprintf(os.Stderr, "%s->%s", installedVersion.fullName, bestVersionMatch.version)
+					if installedVersion.flavor != "" {
+						fmt.Fprintf(os.Stderr, "-%s", installedVersion.flavor)
+					}
+					fmt.Fprintf(os.Stderr, "\n")
+				}
 			}
 		}
 	}
