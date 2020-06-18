@@ -135,7 +135,7 @@ func main() {
 		openBSDVersion = string(output[8:11])
 	}
 
-	cmd = exec.Command("uname", "-m")
+	cmd = exec.Command("arch", "-s")
 	output, err = cmd.Output()
 	check(err)
 
