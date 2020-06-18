@@ -168,11 +168,17 @@ func main() {
 
 NEXTPACKAGE:
 	for _, name := range sortedInstalledPkgs {
-		installedVersions := installedPkgs[name]
+		// quirks is treated specially; don't ever try to manually update it
+		if name == "quirks" {
+			continue
+		}
+
 		// if package name doesn't exist in remote, skip it
 		if _, ok := allPkgs[name]; !ok {
 			continue
 		}
+
+		installedVersions := installedPkgs[name]
 
 		// check all versions to find the "closest" match
 		for _, installedVersion := range installedVersions {
