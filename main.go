@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/base64"
@@ -63,13 +64,28 @@ func parsePkgInfoToPkgList(pkginfo string) PkgList {
 
 	for _, pkg := range strings.Split(pkginfo, "\n") {
 		if len(pkg) > 1 {
-			dat, err := ioutil.ReadFile(fmt.Sprintf("/var/db/pkg/%s/+CONTENTS", pkg))
+			f, err := os.Open(fmt.Sprintf("/var/db/pkg/%s/+CONTENTS", pkg))
 			check(err)
 
-			name, pkgVer := convertPkgStringToPkgVer(pkg)
-			sha256sum := sha256.Sum256(dat)
+			scanner := bufio.NewScanner(f)
+			var data_to_hash []byte
+			found_desc := false
+			for scanner.Scan() {
+				line := scanner.Text()
+				if line == "+DESC\n" {
+					found_desc = true
+				}
+				if found_desc && !strings.HasPrefix(line, "@ts") {
+					data_to_hash = append(data_to_hash, []byte(line)...)
+				}
+			}
+
+			sha256sum := sha256.Sum256(data_to_hash)
 			hash := base64.StdEncoding.EncodeToString(sha256sum[:])
+
+			name, pkgVer := convertPkgStringToPkgVer(pkg)
 			pkgVer.hash = hash
+
 			pkgList[name] = append(pkgList[name], pkgVer)
 		}
 	}
