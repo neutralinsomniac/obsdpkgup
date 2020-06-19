@@ -170,10 +170,13 @@ func compareVersionString(a, b string) (ret int) {
 	return
 }
 
-func main() {
-	var cronMode bool
+var cronMode bool
+var disablePkgUp bool
 
+func main() {
 	flag.BoolVar(&cronMode, "c", false, "Cron mode")
+	flag.BoolVar(&disablePkgUp, "n", false, "Disable pkgup index")
+
 	flag.Parse()
 
 	updateList := make(map[string]bool) // this is used as a set
@@ -202,28 +205,30 @@ func main() {
 
 	var allPkgs PkgList
 
-	resp, err := http.Get(fmt.Sprintf("%s/%s/packages/%s/index.pkgup.gz", installurl, openBSDVersion, arch))
-	check(err)
-	defer resp.Body.Close()
+	if !disablePkgUp {
+		resp, err := http.Get(fmt.Sprintf("%s/%s/packages/%s/index.pkgup.gz", installurl, openBSDVersion, arch))
+		check(err)
+		defer resp.Body.Close()
 
-	switch resp.StatusCode {
-	case 200:
-		// grab body
-		fmt.Fprintf(os.Stderr, "Using pkgup index\n")
-		r, err := gzip.NewReader(resp.Body)
-		check(err)
-		bodyBytes, err := ioutil.ReadAll(r)
-		check(err)
-		allPkgs = parseObsdPkgUpList(string(bodyBytes))
-	case 404:
-		// do nothing
-	default:
-		panic(fmt.Sprintf("unexpected response: %d", resp.StatusCode))
+		switch resp.StatusCode {
+		case 200:
+			// grab body
+			fmt.Fprintf(os.Stderr, "Using pkgup index\n")
+			r, err := gzip.NewReader(resp.Body)
+			check(err)
+			bodyBytes, err := ioutil.ReadAll(r)
+			check(err)
+			allPkgs = parseObsdPkgUpList(string(bodyBytes))
+		case 404:
+			// do nothing
+		default:
+			panic(fmt.Sprintf("unexpected response: %d", resp.StatusCode))
+		}
 	}
 
 	// if we didn't find the "new style" package list yet, fallback to old style
 	if len(allPkgs) == 0 {
-		resp, err = http.Get(fmt.Sprintf("%s/%s/packages/%s/index.txt", installurl, openBSDVersion, arch))
+		resp, err := http.Get(fmt.Sprintf("%s/%s/packages/%s/index.txt", installurl, openBSDVersion, arch))
 		check(err)
 		defer resp.Body.Close()
 
