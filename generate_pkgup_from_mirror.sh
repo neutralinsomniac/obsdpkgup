@@ -30,5 +30,5 @@ do
 	fi
 done
 
-rm index.pkgup.gz
+rm -f index.pkgup.gz
 gzip index.pkgup
