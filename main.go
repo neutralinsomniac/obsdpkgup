@@ -66,8 +66,8 @@ func parseLocalPkgInfoToPkgList() PkgList {
 	cmd := exec.Command("ls", "-1", pkgDbPath)
 	output, err := cmd.Output()
 	check(err)
-	re := regexp.MustCompile(`^@name .*|^@version .*|^@wantlib .*`)
 
+	re := regexp.MustCompile(`^@name .*|^@version .*|^@wantlib .*`)
 	for _, pkgdir := range strings.Split(string(output), "\n") {
 		if pkgdir == "" {
 			continue
@@ -79,7 +79,6 @@ func parseLocalPkgInfoToPkgList() PkgList {
 
 		scanner := bufio.NewScanner(f)
 		var data_to_hash []byte
-		re := regexp.MustCompile(`^@name .*|^@version .*|^@wantlib .*`)
 		for scanner.Scan() {
 			line := scanner.Text()
 			if re.MatchString(line) {
