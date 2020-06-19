@@ -25,7 +25,7 @@ type PkgVer struct {
 	hash     string
 }
 
-// PkgList contains a PkgVer.fullName the PkgVer.version
+// PkgList maps a package name to a PkgVer
 type PkgList map[string][]PkgVer
 
 func check(e error) {
