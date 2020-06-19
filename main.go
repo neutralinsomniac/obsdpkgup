@@ -75,7 +75,6 @@ func parseLocalPkgInfoToPkgList() PkgList {
 
 		f, err := os.Open(fmt.Sprintf("%s%s/+CONTENTS", pkgDbPath, pkgdir))
 		check(err)
-		defer f.Close()
 
 		scanner := bufio.NewScanner(f)
 		var data_to_hash []byte
@@ -88,6 +87,7 @@ func parseLocalPkgInfoToPkgList() PkgList {
 			}
 		}
 
+		f.Close()
 		sha256sum := sha256.Sum256(data_to_hash)
 		hash := base64.StdEncoding.EncodeToString(sha256sum[:])
 		pkgVer.hash = hash
