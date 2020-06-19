@@ -59,35 +59,39 @@ func convertPkgStringToPkgVer(pkgStr string) (string, PkgVer) {
 	panic("couldn't find version in pkg: " + pkgStr)
 }
 
-func parsePkgInfoToPkgList(pkginfo string) PkgList {
+func parseLocalPkgInfoToPkgList() PkgList {
 	pkgList := make(PkgList)
 
-	for _, pkg := range strings.Split(pkginfo, "\n") {
-		if len(pkg) > 1 {
-			f, err := os.Open(fmt.Sprintf("/var/db/pkg/%s/+CONTENTS", pkg))
-			check(err)
+	pkgDbPath := "/var/db/pkg/"
+	cmd := exec.Command("ls", "-1", pkgDbPath)
+	output, err := cmd.Output()
+	check(err)
 
-			scanner := bufio.NewScanner(f)
-			var data_to_hash []byte
-			found_desc := false
-			for scanner.Scan() {
-				line := scanner.Text()
-				if line == "+DESC\n" {
-					found_desc = true
-				}
-				if found_desc && !strings.HasPrefix(line, "@ts") {
-					data_to_hash = append(data_to_hash, []byte(line)...)
-				}
-			}
-
-			sha256sum := sha256.Sum256(data_to_hash)
-			hash := base64.StdEncoding.EncodeToString(sha256sum[:])
-
-			name, pkgVer := convertPkgStringToPkgVer(pkg)
-			pkgVer.hash = hash
-
-			pkgList[name] = append(pkgList[name], pkgVer)
+	for _, pkgdir := range strings.Split(string(output), "\n") {
+		if pkgdir == "" {
+			continue
 		}
+		name, pkgVer := convertPkgStringToPkgVer(pkgdir)
+
+		f, err := os.Open(fmt.Sprintf("%s%s/+CONTENTS", pkgDbPath, pkgdir))
+		check(err)
+		defer f.Close()
+
+		scanner := bufio.NewScanner(f)
+		var data_to_hash []byte
+		re := regexp.MustCompile(`^@name .*|^@version .*|^@wantlib .*`)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if re.MatchString(line) {
+				data_to_hash = append(data_to_hash, []byte(line)...)
+				data_to_hash = append(data_to_hash, '\n')
+			}
+		}
+
+		sha256sum := sha256.Sum256(data_to_hash)
+		hash := base64.StdEncoding.EncodeToString(sha256sum[:])
+		pkgVer.hash = hash
+		pkgList[name] = append(pkgList[name], pkgVer)
 	}
 	return pkgList
 }
@@ -233,11 +237,7 @@ func main() {
 		allPkgs = parseIndexToPkgList(string(bodyBytes))
 	}
 
-	cmd = exec.Command("ls", "-1", "/var/db/pkg/")
-	output, err = cmd.Output()
-	check(err)
-
-	installedPkgs := parsePkgInfoToPkgList(string(output))
+	installedPkgs := parseLocalPkgInfoToPkgList()
 	var sortedInstalledPkgs []string
 	for k := range installedPkgs {
 		sortedInstalledPkgs = append(sortedInstalledPkgs, k)
