@@ -170,16 +170,10 @@ func compareVersionString(a, b string) (ret int) {
 	return
 }
 
-var cronMode bool
-var disablePkgUp bool
+func getMirror() string {
+	mirror := ""
 
-func main() {
-	flag.BoolVar(&cronMode, "c", false, "Cron mode")
-	flag.BoolVar(&disablePkgUp, "n", false, "Disable pkgup index")
-
-	flag.Parse()
-
-	updateList := make(map[string]bool) // this is used as a set
+	// env-vars override installurl
 
 	installurlBytes, err := ioutil.ReadFile("/etc/installurl")
 	check(err)
@@ -203,10 +197,28 @@ func main() {
 
 	arch := strings.TrimSpace(string(output))
 
+	mirror = fmt.Sprintf("%s/%s/packages/%s", installurl, openBSDVersion, arch)
+
+	return mirror
+}
+
+var cronMode bool
+var disablePkgUp bool
+
+func main() {
+	flag.BoolVar(&cronMode, "c", false, "Cron mode")
+	flag.BoolVar(&disablePkgUp, "n", false, "Disable pkgup index")
+
+	flag.Parse()
+
+	updateList := make(map[string]bool) // this is used as a set
+
+	mirror := getMirror()
+
 	var allPkgs PkgList
 
 	if !disablePkgUp {
-		resp, err := http.Get(fmt.Sprintf("%s/%s/packages/%s/index.pkgup.gz", installurl, openBSDVersion, arch))
+		resp, err := http.Get(fmt.Sprintf("%s/index.pkgup.gz", mirror))
 		check(err)
 		defer resp.Body.Close()
 
@@ -228,7 +240,7 @@ func main() {
 
 	// if we didn't find the "new style" package list yet, fallback to old style
 	if len(allPkgs) == 0 {
-		resp, err := http.Get(fmt.Sprintf("%s/%s/packages/%s/index.txt", installurl, openBSDVersion, arch))
+		resp, err := http.Get(fmt.Sprintf("%s/index.txt", mirror))
 		check(err)
 		defer resp.Body.Close()
 
