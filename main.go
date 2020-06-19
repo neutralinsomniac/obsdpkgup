@@ -17,6 +17,7 @@ import (
 	"strings"
 )
 
+// PkgVer represents an individual entry in our package index
 type PkgVer struct {
 	fullName string
 	version  string
@@ -24,7 +25,7 @@ type PkgVer struct {
 	hash     string
 }
 
-// short pkg name -> []PkgVer
+// PkgList contains a PkgVer.fullName the PkgVer.version
 type PkgList map[string][]PkgVer
 
 func check(e error) {
@@ -43,11 +44,10 @@ func convertPkgStringToPkgVer(pkgStr string) (string, PkgVer) {
 	// pkgFileSlice: "[x, y, 1.2.3p4, flavor1, flavor2]"
 	// walk backwards until we find the version
 	pkgVersion := ""
-	matched := false
+	matchRE := regexp.MustCompile(`^[0-9\.]+.*$`)
 	for i := len(pkgFileSlice) - 1; i >= 0; i-- {
-		matched, _ = regexp.MatchString(`^[0-9\.]+.*$`, pkgFileSlice[i])
 		// found version!
-		if matched {
+		if matchRE.MatchString(pkgFileSlice[i]) {
 			pkgVersion = pkgFileSlice[i]
 			flavor := ""
 			if len(pkgFileSlice[i:]) > 1 {
@@ -66,6 +66,7 @@ func parseLocalPkgInfoToPkgList() PkgList {
 	cmd := exec.Command("ls", "-1", pkgDbPath)
 	output, err := cmd.Output()
 	check(err)
+	re := regexp.MustCompile(`^@name .*|^@version .*|^@wantlib .*`)
 
 	for _, pkgdir := range strings.Split(string(output), "\n") {
 		if pkgdir == "" {
