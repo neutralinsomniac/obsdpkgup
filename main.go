@@ -234,7 +234,7 @@ NEXTPACKAGE:
 			fmt.Fprintf(os.Stderr, "up to date\n")
 		}
 	} else {
-		fmt.Fprintf(os.Stderr, "to upgrade:\n")
+		fmt.Fprintf(os.Stderr, "\nto upgrade:\n")
 		fmt.Printf("pkg_add -u")
 		var sortedUpdates []string
 		for k := range updateList {
