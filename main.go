@@ -260,7 +260,7 @@ func main() {
 		switch resp.StatusCode {
 		case 200:
 			// grab body
-			fmt.Fprintf(os.Stderr, "Using pkgup index\n")
+			fmt.Fprintf(os.Stderr, "using pkgup index\n")
 			r, err := gzip.NewReader(resp.Body)
 			check(err)
 			bodyBytes, err := ioutil.ReadAll(r)
