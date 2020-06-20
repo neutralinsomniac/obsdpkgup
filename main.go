@@ -241,8 +241,8 @@ var cronMode bool
 var disablePkgUp bool
 
 func main() {
-	flag.BoolVar(&cronMode, "c", false, "Cron mode")
-	flag.BoolVar(&disablePkgUp, "n", false, "Disable pkgup index")
+	flag.BoolVar(&cronMode, "c", false, "Cron mode (only output when updates are available)")
+	flag.BoolVar(&disablePkgUp, "n", false, "Disable pkgup index (fallback to index.txt)")
 
 	flag.Parse()
 
@@ -260,7 +260,6 @@ func main() {
 		switch resp.StatusCode {
 		case 200:
 			// grab body
-			fmt.Fprintf(os.Stderr, "using pkgup index\n")
 			r, err := gzip.NewReader(resp.Body)
 			check(err)
 			bodyBytes, err := ioutil.ReadAll(r)
