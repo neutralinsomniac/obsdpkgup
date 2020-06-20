@@ -4,7 +4,7 @@ rm -f index.pkgup
 
 for pkg in $(ls *.tgz)
 do
-	tar -C /tmp/ -xzf $pkg +CONTENTS
+	tar -C /tmp/ -xzf "$pkg" +CONTENTS
 	echo "$pkg" $(cat /tmp/+CONTENTS |egrep '^@name|^@version|^@wantlib' |sha256 -b) >> index.pkgup
 done
 
