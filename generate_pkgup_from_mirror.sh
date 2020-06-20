@@ -6,7 +6,7 @@ IFS="
 mirror=$(cat /etc/installurl)
 arch=$(arch -s)
 
-if (sysctl kern.version |grep -- -current)
+if (sysctl -n kern.version |grep -- -current > /dev/null)
 then
 	version="snapshots"
 else
