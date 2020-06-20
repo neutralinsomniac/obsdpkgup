@@ -170,36 +170,71 @@ func compareVersionString(a, b string) (ret int) {
 	return
 }
 
-func getMirror() string {
-	mirror := ""
+type SysInfo struct {
+	arch     string
+	version  string
+	snapshot bool
+}
 
-	// env-vars override installurl
-
-	installurlBytes, err := ioutil.ReadFile("/etc/installurl")
-	check(err)
-
-	installurl := strings.TrimSpace(string(installurlBytes))
+func getSystemInfo() SysInfo {
+	var sysInfo SysInfo
 
 	cmd := exec.Command("sysctl", "-n", "kern.version")
 	output, err := cmd.Output()
 	check(err)
 
-	openBSDVersion := ""
 	if strings.Contains(string(output), "-current") {
-		openBSDVersion = "snapshots"
-	} else {
-		openBSDVersion = string(output[8:11])
+		sysInfo.snapshot = true
 	}
+
+	sysInfo.version = string(output[8:11])
 
 	cmd = exec.Command("arch", "-s")
 	output, err = cmd.Output()
 	check(err)
 
-	arch := strings.TrimSpace(string(output))
+	sysInfo.arch = strings.TrimSpace(string(output))
 
-	mirror = fmt.Sprintf("%s/%s/packages/%s", installurl, openBSDVersion, arch)
+	return sysInfo
+}
+
+func replaceMirrorVars(mirror string, sysInfo SysInfo) string {
+	mirror = strings.ReplaceAll(mirror, "%m", "/pub/OpenBSD/%c/packages/%a/")
+	mirror = strings.ReplaceAll(mirror, "%a", sysInfo.arch)
+	mirror = strings.ReplaceAll(mirror, "%v", sysInfo.version)
+	if sysInfo.snapshot {
+		mirror = strings.ReplaceAll(mirror, "%c", "snapshots")
+	} else {
+		mirror = strings.ReplaceAll(mirror, "%c", sysInfo.version)
+	}
 
 	return mirror
+}
+
+func getMirror() string {
+	sysInfo := getSystemInfo()
+
+	// TRUSTED_PKG_PATH env var is tested first
+	trusted_pkg_path := os.Getenv("TRUSTED_PKG_PATH")
+	if trusted_pkg_path != "" {
+		return replaceMirrorVars(trusted_pkg_path, sysInfo)
+	}
+
+	// PKG_PATH is tested next
+	pkg_path := os.Getenv("PKG_PATH")
+	if pkg_path != "" {
+		return replaceMirrorVars(pkg_path, sysInfo)
+	}
+
+	// next, try /etc/installurl
+	installurlBytes, err := ioutil.ReadFile("/etc/installurl")
+	if err == nil {
+		installurl := strings.TrimSpace(string(installurlBytes))
+		return replaceMirrorVars(fmt.Sprintf("%s/%%c/packages/%%a/", installurl), sysInfo)
+	}
+
+	// finally, fall back to cdn
+	return replaceMirrorVars("https://cdn.openbsd.org/pub/OpenBSD/%%c/packages/%%a/", sysInfo)
 }
 
 var cronMode bool
