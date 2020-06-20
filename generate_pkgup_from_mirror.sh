@@ -28,8 +28,6 @@ then
 	fi
 fi
 
-exit
-
 rm -f index.pkgup
 
 for line in $index
