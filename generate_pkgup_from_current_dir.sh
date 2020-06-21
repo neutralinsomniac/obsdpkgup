@@ -8,5 +8,5 @@ do
 	echo "$pkg" $(cat +CONTENTS |egrep '^@name|^@version|^@wantlib' |sha256 -b) >> index.pkgup
 done
 
-rm -f index.pkgup.gz
+rm -f index.pkgup.gz +CONTENTS
 gzip -f index.pkgup

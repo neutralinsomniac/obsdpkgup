@@ -38,9 +38,8 @@ do
 		curl $url/$pkg |tar xzqf - +CONTENTS
 		hash=$(cat +CONTENTS |egrep '^@name|^@version|^@wantlib' |sha256 -b)
 		echo "$pkg" "$hash" >> index.pkgup
-		rm -f +CONTENTS
 	fi
 done
 
-rm -f index.pkgup.gz
+rm -f index.pkgup.gz +CONTENTS
 gzip index.pkgup
