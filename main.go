@@ -254,6 +254,8 @@ func main() {
 
 	flag.Parse()
 
+	var err error
+
 	updateList := make(map[string]bool) // this is used as a set
 
 	mirror := getMirror()
@@ -261,7 +263,13 @@ func main() {
 	var allPkgs PkgList
 
 	if !disablePkgUp {
-		resp, err := http.Get(fmt.Sprintf("%s/index.pkgup.gz", mirror))
+		pkgup_index := os.Getenv("PKGUP_INDEX")
+		var resp *http.Response
+		if pkgup_index != "" {
+			resp, err = http.Get(pkgup_index)
+		} else {
+			resp, err = http.Get(fmt.Sprintf("%s/index.pkgup.gz", mirror))
+		}
 		check(err)
 		defer resp.Body.Close()
 
