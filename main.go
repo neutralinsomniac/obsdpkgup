@@ -63,15 +63,12 @@ func parseLocalPkgInfoToPkgList() PkgList {
 	pkgList := make(PkgList)
 
 	pkgDbPath := "/var/db/pkg/"
-	cmd := exec.Command("ls", "-1", pkgDbPath)
-	output, err := cmd.Output()
+	files, err := ioutil.ReadDir(pkgDbPath)
 	check(err)
 
 	re := regexp.MustCompile(`^@name .*|^@version .*|^@wantlib .*`)
-	for _, pkgdir := range strings.Split(string(output), "\n") {
-		if pkgdir == "" {
-			continue
-		}
+	for _, file := range files {
+		pkgdir := file.Name()
 		name, pkgVer := convertPkgStringToPkgVer(pkgdir)
 
 		f, err := os.Open(fmt.Sprintf("%s%s/+CONTENTS", pkgDbPath, pkgdir))
