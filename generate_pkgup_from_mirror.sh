@@ -21,7 +21,8 @@ if [ -e index.pkgup.gz ]
 then
 	local_quirks_hash=$(gunzip -c index.pkgup.gz |grep quirks |cut -d " " -f 2)
 	pkg=$(echo "$index" |grep quirks |cut -b 53-)
-	remote_quirks_hash=$(curl $url/$pkg |tar xzqf - +CONTENTS |egrep '^@name|^@version|^@wantlib' |sha256 -b)
+	curl $url/$pkg |tar xzqf - +CONTENTS
+	remote_quirks_hash=$(cat +CONTENTS |egrep '^@name|^@version|^@wantlib' |sha256 -b)
 	if [ a$local_quirks_hash = a$remote_quirks_hash ]
 	then
 		echo "no update required"
