@@ -19,9 +19,10 @@ index=$(curl $url/index.txt 2>/dev/null)
 
 if [ -e index.pkgup.gz ]
 then
-	local_quirks=$(gunzip -c index.pkgup.gz |grep quirks |cut -d " " -f 1)
-	remote_quirks=$(echo "$index" |grep quirks |cut -b 53-)
-	if [ a$local_quirks = a$remote_quirks ]
+	local_quirks_hash=$(gunzip -c index.pkgup.gz |grep quirks |cut -d " " -f 2)
+	pkg=$(echo "$index" |grep quirks |cut -b 53-)
+	remote_quirks_hash=$(curl $url/$pkg |tar xzqf - +CONTENTS |egrep '^@name|^@version|^@wantlib' |sha256 -b)
+	if [ a$local_quirks_hash = a$remote_quirks_hash ]
 	then
 		echo "no update required"
 		exit
