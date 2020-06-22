@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"suah.dev/protect"
 )
 
 // PkgVer represents an individual entry in our package index
@@ -238,6 +240,15 @@ var cronMode bool
 var disablePkgUp bool
 
 func main() {
+	_ = protect.Pledge("stdio unveil rpath wpath cpath flock dns inet tty proc exec")
+	_ = protect.Unveil("/etc/resolv.conf", "r")
+	_ = protect.Unveil("/etc/installurl", "r")
+	_ = protect.Unveil("/etc/ssl/cert.pem", "r")
+	_ = protect.Unveil("/sbin/sysctl", "rx")
+	_ = protect.Unveil("/usr/bin/arch", "rx")
+	_ = protect.Unveil("/bin/ls", "rx")
+	_ = protect.Unveil("/var/db/pkg", "r")
+
 	flag.BoolVar(&cronMode, "c", false, "Cron mode (only output when updates are available)")
 	flag.BoolVar(&disablePkgUp, "n", false, "Disable pkgup index (fallback to index.txt)")
 
