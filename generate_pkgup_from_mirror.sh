@@ -25,6 +25,7 @@ then
 	if [ a$local_quirks_hash = a$remote_quirks_hash ]
 	then
 		echo "no update required"
+		rm -f +CONTENTS
 		exit
 	fi
 fi
