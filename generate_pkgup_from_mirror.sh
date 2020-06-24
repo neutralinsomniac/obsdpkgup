@@ -15,21 +15,15 @@ fi
 
 url="$mirror/$version/packages/$arch"
 
-index=$(curl $url/index.txt 2>/dev/null)
 
-if [ -e index.pkgup.gz ]
-then
-	local_quirks_hash=$(gunzip -c index.pkgup.gz |grep quirks |cut -d " " -f 2)
-	pkg=$(echo "$index" |grep quirks |cut -b 53-)
-	curl $url/$pkg |tar xzqf - +CONTENTS
-	remote_quirks_hash=$(cat +CONTENTS |egrep '^@name|^@version|^@wantlib' |sha256 -b)
-	if [ a$local_quirks_hash = a$remote_quirks_hash ]
-	then
-		echo "no update required"
-		rm -f +CONTENTS
-		exit
-	fi
-fi
+#old=`pkg_info -f quirks | sed -En '/@digital-sig/ s/(.*signify2:|:external)//gp'`
+#new=`PKG_DBDIR=/var/empty pkg_info -f quirks | sed -En '/@digital-sig/ s/(.*signify2:|:external)//gp'`
+#if [[ $old == $new ]]; then
+#	echo "Already up-to-date: $old"
+#	exit
+#fi
+
+index=$(curl $url/index.txt 2>/dev/null)
 
 rm -f index.pkgup
 
