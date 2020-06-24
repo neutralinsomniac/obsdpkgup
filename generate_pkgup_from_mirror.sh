@@ -33,7 +33,7 @@ do
 	if echo $pkg |grep '\.tgz$'
 	then
 		curl $url/$pkg |tar xzqf - +CONTENTS
-		hash=$(cat +CONTENTS |egrep '^@name|^@version|^@wantlib' |sha256 -b)
+		hash=$(cat +CONTENTS |egrep '^@name|^@depend|^@version|^@wantlib' |sha256 -b)
 		echo "$pkg" "$hash" >> index.pkgup
 	fi
 done

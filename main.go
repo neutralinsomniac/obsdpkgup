@@ -67,7 +67,7 @@ func parseLocalPkgInfoToPkgList() PkgList {
 	files, err := ioutil.ReadDir(pkgDbPath)
 	check(err)
 
-	re := regexp.MustCompile(`^@name .*|^@version .*|^@wantlib .*`)
+	re := regexp.MustCompile(`^@name .*|^@depend .*|^@version .*|^@wantlib .*`)
 	for _, file := range files {
 		pkgdir := file.Name()
 		name, pkgVer := convertPkgStringToPkgVer(pkgdir)
