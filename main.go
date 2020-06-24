@@ -159,9 +159,9 @@ func compareVersionString(v1, v2 string) int {
 		}
 
 		// now try length
-		if len(v1s) > len(v2s) {
+		if len(v1s[i]) > len(v2s[i]) {
 			return -1
-		} else if len(v1s) < len(v2s) {
+		} else if len(v1s[i]) < len(v2s[i]) {
 			return 1
 		}
 
