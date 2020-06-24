@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 
 	"suah.dev/protect"
@@ -140,33 +139,41 @@ func min(a, b int) int {
 	}
 }
 
-func compareVersionString(a, b string) (ret int) {
-	as := strings.Split(a, ".")
-	bs := strings.Split(b, ".")
-	loopMax := len(bs)
-	if len(as) > len(bs) {
-		loopMax = len(as)
+var numberRe = regexp.MustCompile(`^\d+`)
+
+func compareVersionString(v1, v2 string) int {
+	v1s := strings.Split(v1, ".")
+	v2s := strings.Split(v2, ".")
+	min := min(len(v1s), len(v2s))
+
+	for i := 0; i < min; i++ {
+		// first, snag and compare the int portions
+		v1num := numberRe.FindString(v1s[i])
+		v2num := numberRe.FindString(v2s[i])
+		if v1num != "" && v2num != "" {
+			if v1num > v2num {
+				return -1
+			} else if v1num < v2num {
+				return 1
+			}
+		}
+
+		// now try length
+		if len(v1s) > len(v2s) {
+			return -1
+		} else if len(v1s) < len(v2s) {
+			return 1
+		}
+
+		// now try alphanumeric
+		if v1s[i] > v2s[i] {
+			return -1
+		} else if v1s[i] < v2s[i] {
+			return 1
+		}
 	}
-	for i := 0; i < loopMax; i++ {
-		var x, y string
-		if len(as) > i {
-			x = as[i]
-		}
-		if len(bs) > i {
-			y = bs[i]
-		}
-		xi, _ := strconv.Atoi(x)
-		yi, _ := strconv.Atoi(y)
-		if xi > yi {
-			ret = -1
-		} else if xi < yi {
-			ret = 1
-		}
-		if ret != 0 {
-			break
-		}
-	}
-	return
+
+	return 0
 }
 
 type SysInfo struct {
