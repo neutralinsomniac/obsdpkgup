@@ -4,7 +4,11 @@ IFS="
 "
 
 mirror=$(cat /etc/installurl)
-arch=$(arch -s)
+
+if [ -z "$arch" ]
+then
+	arch=$(arch -s)
+fi
 
 if (sysctl -n kern.version |grep -- -current > /dev/null)
 then

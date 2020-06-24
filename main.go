@@ -270,10 +270,12 @@ func main() {
 	var allPkgs PkgList
 
 	if !disablePkgUp {
-		pkgup_index := os.Getenv("PKGUP_INDEX")
+		sysInfo := getSystemInfo()
+
+		pkgup_url := os.Getenv("PKGUP_URL")
 		var resp *http.Response
-		if pkgup_index != "" {
-			resp, err = http.Get(pkgup_index)
+		if pkgup_url != "" {
+			resp, err = http.Get(replaceMirrorVars(fmt.Sprintf("%s/%%c/%%a/index.pkgup.gz", pkgup_url), sysInfo))
 		} else {
 			resp, err = http.Get(fmt.Sprintf("%s/index.pkgup.gz", mirror))
 		}
