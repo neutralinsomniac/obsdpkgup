@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/base64"
@@ -39,16 +38,17 @@ func remove(slice []string, s int) []string {
 	return append(slice[:s], slice[s+1:]...)
 }
 
+var numRE = regexp.MustCompile(`^[0-9\.]+.*$`)
+
 // returns: package shortname, pkgVer struct
 func convertPkgStringToPkgVer(pkgStr string) (string, PkgVer) {
 	pkgFileSlice := strings.Split(pkgStr, "-")
 	// pkgFileSlice: "[x, y, 1.2.3p4, flavor1, flavor2]"
 	// walk backwards until we find the version
 	pkgVersion := ""
-	matchRE := regexp.MustCompile(`^[0-9\.]+.*$`)
 	for i := len(pkgFileSlice) - 1; i >= 0; i-- {
 		// found version!
-		if matchRE.MatchString(pkgFileSlice[i]) {
+		if numRE.MatchString(pkgFileSlice[i]) {
 			pkgVersion = pkgFileSlice[i]
 			flavor := ""
 			if len(pkgFileSlice[i:]) > 1 {
@@ -67,7 +67,8 @@ func parseLocalPkgInfoToPkgList() PkgList {
 	files, err := ioutil.ReadDir(pkgDbPath)
 	check(err)
 
-	re := regexp.MustCompile(`^@name .*|^@depend .*|^@version .*|^@wantlib .*`)
+	re := regexp.MustCompilePOSIX(`^@name .*$|^@depend .*$|^@version .*$|^@wantlib .*$`)
+
 	for _, file := range files {
 		pkgdir := file.Name()
 		name, pkgVer := convertPkgStringToPkgVer(pkgdir)
@@ -75,14 +76,15 @@ func parseLocalPkgInfoToPkgList() PkgList {
 		f, err := os.Open(fmt.Sprintf("%s%s/+CONTENTS", pkgDbPath, pkgdir))
 		check(err)
 
-		scanner := bufio.NewScanner(f)
+		contents, err := ioutil.ReadAll(f)
+		check(err)
+
+		matches := re.FindAll(contents, -1)
+
 		var data_to_hash []byte
-		for scanner.Scan() {
-			line := scanner.Text()
-			if re.MatchString(line) {
-				data_to_hash = append(data_to_hash, []byte(line)...)
-				data_to_hash = append(data_to_hash, '\n')
-			}
+		for _, match := range matches {
+			data_to_hash = append(data_to_hash, match...)
+			data_to_hash = append(data_to_hash, '\n')
 		}
 
 		f.Close()
