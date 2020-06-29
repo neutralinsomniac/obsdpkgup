@@ -16,17 +16,18 @@ up to date
 
 ## Usage
 
-### Check for upgrades:
-`obsdpkgup`
-
-### Run and apply found package upgrades:
-`obsdpkgup |doas sh`
-
 ### Check for upgrades using signatures:
 
 (see [The Same-Version Rebuild Problem](https://github.com/neutralinsomniac/obsdpkgup#the-same-version-rebuild-problem)):
 
 `PKGUP_URL=https://pintobyte.com/pkgup/ obsdpkgup`
+
+### Check for upgrades using index.txt:
+`obsdpkgup`
+
+### Run and apply found package upgrades:
+`obsdpkgup |doas sh`
+
 
 ### Cron mode (don't output anything when packages are up-to-date):
 `obsdpkgup -c`
