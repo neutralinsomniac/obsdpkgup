@@ -347,6 +347,8 @@ NEXTPACKAGE:
 				if remoteVersion.flavor != installedVersion.flavor {
 					continue NEXTVERSION
 				}
+				// special case to handle when the major version has completely changed (and thus would be skipped)
+				bestVersionMatch = remoteVersion
 				// now find the version that matches our current version the closest
 				for i := 0; i < min(len(remoteVersion.version), len(installedVersion.version)); i++ {
 					if remoteVersion.version[i] != installedVersion.version[i] {
