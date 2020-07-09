@@ -361,7 +361,7 @@ NEXTPACKAGE:
 
 			// we didn't find a match :<
 			if bestVersionMatch.fullName == "" {
-				fmt.Fprintf(os.Stderr, "WARN: couldn't find a version candidate for %s (unknown flavor?)\n", installedVersion.fullName)
+				fmt.Fprintf(os.Stderr, "WARN: couldn't find a version candidate for %s (unknown flavor/major version mismatch?)\n", installedVersion.fullName)
 				continue NEXTPACKAGE
 			}
 
