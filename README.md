@@ -23,7 +23,7 @@ up to date
 `PKGUP_URL=https://pintobyte.com/pkgup/ obsdpkgup`
 
 ### Check for upgrades using index.txt:
-`obsdpkgup`
+`obsdpkgup -n`
 
 ### Run and apply found package upgrades:
 `obsdpkgup |doas sh`
