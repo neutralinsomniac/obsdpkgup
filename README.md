@@ -72,6 +72,8 @@ will have no adverse effect on the system.
 
 ## The Same-Version Rebuild Problem
 
+Or, why can't we just compare version numbers in the mirror index?
+
 Currently, the only index-like file available for **obsdpkgup** to check is a
 mirror's `index.txt` file. This file contains the external-facing version
 numbers of the packages available on the mirror, but does not reveal the
