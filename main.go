@@ -191,7 +191,7 @@ func getSystemInfo() SysInfo {
 	output, err := cmd.Output()
 	check(err)
 
-	if strings.Contains(string(output), "-current") {
+	if strings.Contains(string(output), "-current") || forceSnapshot {
 		sysInfo.snapshot = true
 	}
 
@@ -247,6 +247,7 @@ func getMirror() string {
 
 var cronMode bool
 var disablePkgUp bool
+var forceSnapshot bool
 
 func main() {
 	_ = protect.Pledge("stdio unveil rpath wpath cpath flock dns inet tty proc exec")
@@ -260,6 +261,7 @@ func main() {
 
 	flag.BoolVar(&cronMode, "c", false, "Cron mode (only output when updates are available)")
 	flag.BoolVar(&disablePkgUp, "n", false, "Disable pkgup index (fallback to index.txt)")
+	flag.BoolVar(&forceSnapshot, "s", false, "Force snapshot (use when new release is happening Soon(R))")
 
 	flag.Parse()
 
