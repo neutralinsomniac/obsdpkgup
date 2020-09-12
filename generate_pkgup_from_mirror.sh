@@ -10,11 +10,14 @@ then
 	arch=$(arch -s)
 fi
 
-if (sysctl -n kern.version |grep -- -current > /dev/null)
+if [ -z "$version" ]
 then
-	version="snapshots"
-else
-	version=$(sysctl -n kern.version |head -n 1 |cut -b 9-11)
+	if (sysctl -n kern.version |grep -- -current > /dev/null)
+	then
+		version="snapshots"
+	else
+		version=$(sysctl -n kern.version |head -n 1 |cut -b 9-11)
+	fi
 fi
 
 url="$mirror/$version/packages/$arch"
