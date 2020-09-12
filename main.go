@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"suah.dev/protect"
@@ -150,28 +151,30 @@ func compareVersionString(v1, v2 string) int {
 
 	for i := 0; i < min; i++ {
 		// first, snag and compare the int portions
-		v1num := numberRe.FindString(v1s[i])
-		v2num := numberRe.FindString(v2s[i])
-		if v1num != "" && v2num != "" {
+		v1str := numberRe.FindString(v1s[i])
+		v2str := numberRe.FindString(v2s[i])
+		if v1str != "" && v2str != "" {
+			v1num, _ := strconv.Atoi(v1str)
+			v2num, _ := strconv.Atoi(v2str)
 			if v1num > v2num {
-				return -1
+				return -(i + 1)
 			} else if v1num < v2num {
-				return 1
+				return i + 1
 			}
 		}
 
 		// now try length
 		if len(v1s[i]) > len(v2s[i]) {
-			return -1
+			return -(i + 1)
 		} else if len(v1s[i]) < len(v2s[i]) {
-			return 1
+			return i + 1
 		}
 
 		// now try alphanumeric
 		if v1s[i] > v2s[i] {
-			return -1
+			return -(i + 1)
 		} else if v1s[i] < v2s[i] {
-			return 1
+			return i + 1
 		}
 	}
 
@@ -340,9 +343,10 @@ NEXTPACKAGE:
 
 		// check all versions to find the "closest" match
 		for _, installedVersion := range installedVersions {
+			versionComparisonResult := 0
 			// figure out our "best" version match
 			var bestVersionMatch PkgVer
-			bestMatchLen := -1
+			bestMatch := -1
 		NEXTVERSION:
 			for _, remoteVersion := range allPkgs[name] {
 				// verify flavor match first
@@ -350,27 +354,26 @@ NEXTPACKAGE:
 					continue NEXTVERSION
 				}
 				// now find the version that matches our current version the closest
-				for i := 0; i < min(len(remoteVersion.version), len(installedVersion.version)); i++ {
-					if remoteVersion.version[i] != installedVersion.version[i] {
-						continue NEXTVERSION
-					}
-					if i > bestMatchLen {
-						bestMatchLen = i
-						bestVersionMatch = remoteVersion
-					}
+				versionComparisonResult = compareVersionString(installedVersion.version, remoteVersion.version)
+				//fmt.Fprintf(os.Stderr, "%s, %s, %s: %d\n", name, installedVersion.version, remoteVersion.version, versionComparisonResult)
+				if versionComparisonResult == 0 {
+					bestMatch = versionComparisonResult
+					bestVersionMatch = remoteVersion
+					break
+				}
+				if versionComparisonResult > bestMatch && versionComparisonResult > 0 {
+					bestMatch = versionComparisonResult
+					bestVersionMatch = remoteVersion
 				}
 			}
 
 			// we didn't find a match :<
 			if bestVersionMatch.fullName == "" {
-				fmt.Fprintf(os.Stderr, "WARN: couldn't find a version candidate for %s (unknown flavor/major version mismatch?)\n", installedVersion.fullName)
 				continue NEXTPACKAGE
 			}
 
-			versionComparisonResult := compareVersionString(installedVersion.version, bestVersionMatch.version)
-
 			switch {
-			case versionComparisonResult > 0:
+			case bestMatch > 0:
 				// version was changed; straight upgrade
 				updateList[name] = true
 				fmt.Fprintf(os.Stderr, "%s->%s", installedVersion.fullName, bestVersionMatch.version)
@@ -378,7 +381,7 @@ NEXTPACKAGE:
 					fmt.Fprintf(os.Stderr, "-%s", installedVersion.flavor)
 				}
 				fmt.Fprintf(os.Stderr, "\n")
-			case versionComparisonResult == 0:
+			case bestMatch == 0:
 				// version is the same; check sha
 				if bestVersionMatch.hash != "" && installedVersion.hash != bestVersionMatch.hash {
 					updateList[name] = true
