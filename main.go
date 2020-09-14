@@ -264,7 +264,7 @@ func main() {
 
 	flag.BoolVar(&cronMode, "c", false, "Cron mode (only output when updates are available)")
 	flag.BoolVar(&disablePkgUp, "n", false, "Disable pkgup index (fallback to index.txt)")
-	flag.BoolVar(&forceSnapshot, "s", false, "Force snapshot (use when new release is happening Soon(R))")
+	flag.BoolVar(&forceSnapshot, "s", false, "Force checking snapshot directory for upgrades")
 
 	flag.Parse()
 
