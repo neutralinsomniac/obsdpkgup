@@ -194,7 +194,7 @@ func getSystemInfo() SysInfo {
 	output, err := cmd.Output()
 	check(err)
 
-	if strings.Contains(string(output), "-current") || forceSnapshot {
+	if strings.Contains(string(output), "-current") || strings.Contains(string(output), "-beta") || forceSnapshot {
 		sysInfo.snapshot = true
 	}
 

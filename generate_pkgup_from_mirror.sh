@@ -12,7 +12,7 @@ fi
 
 if [ -z "$version" ]
 then
-	if (sysctl -n kern.version |grep -- -current > /dev/null)
+	if (sysctl -n kern.version |egrep -- '-current|-beta' > /dev/null)
 	then
 		version="snapshots"
 	else
