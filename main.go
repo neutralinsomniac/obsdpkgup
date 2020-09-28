@@ -20,6 +20,7 @@ import (
 
 // PkgVer represents an individual entry in our package index
 type PkgVer struct {
+	name     string
 	fullName string
 	version  string
 	flavor   string
@@ -29,16 +30,17 @@ type PkgVer struct {
 // PkgList maps a package name to a list of PkgVer's
 type PkgList map[string][]PkgVer
 
-func check(e error) {
+func checkAndExit(e error) {
 	if e != nil {
-		panic(e)
+		fmt.Println(e)
+		os.Exit(1)
 	}
 }
 
 var numRE = regexp.MustCompile(`^[0-9\.]+.*$`)
 
 // returns: package shortname, pkgVer struct
-func convertPkgStringToPkgVer(pkgStr string) (string, PkgVer) {
+func convertPkgStringToPkgVer(pkgStr string) (*PkgVer, error) {
 	pkgFileSlice := strings.Split(pkgStr, "-")
 	// pkgFileSlice: "[x, y, 1.2.3p4, flavor1, flavor2]"
 	// walk backwards until we find the version
@@ -51,10 +53,15 @@ func convertPkgStringToPkgVer(pkgStr string) (string, PkgVer) {
 			if len(pkgFileSlice[i:]) > 1 {
 				flavor = strings.Join(pkgFileSlice[i+1:], "-")
 			}
-			return strings.Join(pkgFileSlice[:i], "-"), PkgVer{fullName: pkgStr, version: pkgVersion, flavor: flavor}
+			return &PkgVer{
+				fullName: pkgStr,
+				version:  pkgVersion,
+				flavor:   flavor,
+				name:     strings.Join(pkgFileSlice[:i], "-"),
+			}, nil
 		}
 	}
-	panic("couldn't find version in pkg: " + pkgStr)
+	return nil, fmt.Errorf("couldn't find version in pkg: %q\n", pkgStr)
 }
 
 func parseLocalPkgInfoToPkgList() PkgList {
@@ -62,19 +69,20 @@ func parseLocalPkgInfoToPkgList() PkgList {
 
 	pkgDbPath := "/var/db/pkg/"
 	files, err := ioutil.ReadDir(pkgDbPath)
-	check(err)
+	checkAndExit(err)
 
 	re := regexp.MustCompilePOSIX(`^@name .*$|^@depend .*$|^@version .*$|^@wantlib .*$`)
 
 	for _, file := range files {
 		pkgdir := file.Name()
-		name, pkgVer := convertPkgStringToPkgVer(pkgdir)
+		pkgVer, err := convertPkgStringToPkgVer(pkgdir)
+		checkAndExit(err)
 
 		f, err := os.Open(fmt.Sprintf("%s%s/+CONTENTS", pkgDbPath, pkgdir))
-		check(err)
+		checkAndExit(err)
 
 		contents, err := ioutil.ReadAll(f)
-		check(err)
+		checkAndExit(err)
 
 		matches := re.FindAll(contents, -1)
 
@@ -88,7 +96,7 @@ func parseLocalPkgInfoToPkgList() PkgList {
 		sha256sum := sha256.Sum256(data_to_hash)
 		hash := base64.StdEncoding.EncodeToString(sha256sum[:])
 		pkgVer.hash = hash
-		pkgList[name] = append(pkgList[name], pkgVer)
+		pkgList[pkgVer.name] = append(pkgList[pkgVer.name], *pkgVer)
 	}
 	return pkgList
 }
@@ -103,8 +111,9 @@ func parseIndexToPkgList(index string) PkgList {
 			if !strings.HasSuffix(pkgFile, ".tgz") {
 				continue
 			}
-			name, pkgVer := convertPkgStringToPkgVer(pkgFile[:len(pkgFile)-4])
-			pkgList[name] = append(pkgList[name], pkgVer)
+			pkgVer, err := convertPkgStringToPkgVer(pkgFile[:len(pkgFile)-4])
+			checkAndExit(err)
+			pkgList[pkgVer.name] = append(pkgList[pkgVer.name], *pkgVer)
 		}
 	}
 	return pkgList
@@ -121,9 +130,10 @@ func parseObsdPkgUpList(pkgup string) PkgList {
 				continue
 			}
 			hash := tmp[1]
-			name, pkgVer := convertPkgStringToPkgVer(pkgFile[:len(pkgFile)-4])
+			pkgVer, err := convertPkgStringToPkgVer(pkgFile[:len(pkgFile)-4])
+			checkAndExit(err)
 			pkgVer.hash = hash
-			pkgList[name] = append(pkgList[name], pkgVer)
+			pkgList[pkgVer.name] = append(pkgList[pkgVer.name], *pkgVer)
 		}
 	}
 
@@ -188,7 +198,7 @@ func getSystemInfo() SysInfo {
 
 	cmd := exec.Command("sysctl", "-n", "kern.version")
 	output, err := cmd.Output()
-	check(err)
+	checkAndExit(err)
 
 	if strings.Contains(string(output), "-current") || strings.Contains(string(output), "-beta") || forceSnapshot {
 		sysInfo.snapshot = true
@@ -198,7 +208,7 @@ func getSystemInfo() SysInfo {
 
 	cmd = exec.Command("arch", "-s")
 	output, err = cmd.Output()
-	check(err)
+	checkAndExit(err)
 
 	sysInfo.arch = strings.TrimSpace(string(output))
 
@@ -283,36 +293,38 @@ func main() {
 		} else {
 			resp, err = http.Get(fmt.Sprintf("%s/index.pkgup.gz", mirror))
 		}
-		check(err)
+		checkAndExit(err)
 		defer resp.Body.Close()
 
 		switch resp.StatusCode {
 		case 200:
 			// grab body
 			r, err := gzip.NewReader(resp.Body)
-			check(err)
+			checkAndExit(err)
 			bodyBytes, err := ioutil.ReadAll(r)
-			check(err)
+			checkAndExit(err)
 			allPkgs = parseObsdPkgUpList(string(bodyBytes))
 		case 404:
 			// do nothing
 		default:
-			panic(fmt.Sprintf("unexpected response: %d", resp.StatusCode))
+			fmt.Printf("unexpected HTTP response: %d\n", resp.StatusCode)
+			os.Exit(1)
 		}
 	}
 
 	// if we didn't find the "new style" package list yet, fallback to old style
 	if len(allPkgs) == 0 {
 		resp, err := http.Get(fmt.Sprintf("%s/index.txt", mirror))
-		check(err)
+		checkAndExit(err)
 		defer resp.Body.Close()
 
 		if resp.StatusCode != 200 {
-			panic(fmt.Sprintf("unexpected response: %d", resp.StatusCode))
+			fmt.Printf("unexpected HTTP response: %d\n", resp.StatusCode)
+			os.Exit(1)
 		}
 
 		bodyBytes, err := ioutil.ReadAll(resp.Body)
-		check(err)
+		checkAndExit(err)
 
 		allPkgs = parseIndexToPkgList(string(bodyBytes))
 	}
