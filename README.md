@@ -25,8 +25,12 @@ up to date
 ### Check for upgrades using index.txt:
 `obsdpkgup -n`
 
+### Force checking snapshot directory for upgrades:
+`obsdpkgup -s`
+
 ### Run and apply found package upgrades:
 `obsdpkgup |doas sh`
+
 
 ### Cron mode (don't output anything when packages are up-to-date):
 `obsdpkgup -c`
