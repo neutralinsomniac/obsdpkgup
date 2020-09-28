@@ -26,17 +26,13 @@ type PkgVer struct {
 	hash     string
 }
 
-// PkgList maps a package name to a PkgVer
+// PkgList maps a package name to a list of PkgVer's
 type PkgList map[string][]PkgVer
 
 func check(e error) {
 	if e != nil {
 		panic(e)
 	}
-}
-
-func remove(slice []string, s int) []string {
-	return append(slice[:s], slice[s+1:]...)
 }
 
 var numRE = regexp.MustCompile(`^[0-9\.]+.*$`)
@@ -275,9 +271,10 @@ func main() {
 	mirror := getMirror()
 
 	var allPkgs PkgList
+	var sysInfo SysInfo
 
 	if !disablePkgUp {
-		sysInfo := getSystemInfo()
+		sysInfo = getSystemInfo()
 
 		pkgup_url := os.Getenv("PKGUP_URL")
 		var resp *http.Response
@@ -402,6 +399,9 @@ NEXTPACKAGE:
 	} else {
 		fmt.Fprintf(os.Stderr, "\nto upgrade:\n")
 		fmt.Printf("pkg_add -u")
+		if sysInfo.snapshot == true {
+			fmt.Printf(" -Dsnap")
+		}
 		var sortedUpdates []string
 		for k := range updateList {
 			sortedUpdates = append(sortedUpdates, k)
