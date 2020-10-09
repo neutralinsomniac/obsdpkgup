@@ -32,7 +32,7 @@ type PkgList map[string][]PkgVer
 
 func checkAndExit(e error) {
 	if e != nil {
-		fmt.Println(e)
+		fmt.Fprintf(os.Stderr, "%s\n", e)
 		os.Exit(1)
 	}
 }
