@@ -288,11 +288,13 @@ func main() {
 
 		pkgup_url := os.Getenv("PKGUP_URL")
 		var resp *http.Response
+		var url string
 		if pkgup_url != "" {
-			resp, err = http.Get(replaceMirrorVars(fmt.Sprintf("%s/%%c/%%a/index.pkgup.gz", pkgup_url), sysInfo))
+			url = replaceMirrorVars(fmt.Sprintf("%s/%%c/%%a/index.pkgup.gz", pkgup_url), sysInfo)
 		} else {
-			resp, err = http.Get(fmt.Sprintf("%s/index.pkgup.gz", mirror))
+			url = fmt.Sprintf("%s/index.pkgup.gz", mirror)
 		}
+		resp, err = http.Get(url)
 		checkAndExit(err)
 		defer resp.Body.Close()
 
@@ -305,7 +307,8 @@ func main() {
 			checkAndExit(err)
 			allPkgs = parseObsdPkgUpList(string(bodyBytes))
 		case 404:
-			// do nothing
+			fmt.Printf("Unable to locate pkgup index at '%s'.\nTry '%s -n' to disable pkgup index.\n", url, os.Args[0])
+			os.Exit(1)
 		default:
 			fmt.Printf("unexpected HTTP response: %d\n", resp.StatusCode)
 			os.Exit(1)
