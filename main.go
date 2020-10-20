@@ -184,7 +184,10 @@ func compareVersionString(v1, v2 string) int {
 		}
 	}
 
-	return 0
+	// if we got here, then we have a complete prefix match up to the common length of the split arrays.
+	// return the difference in lengths to make sure that one array isn't longer than the other (to account for e.g. 81.0->81.0.2)
+	return len(v2s) - len(v1s)
+
 }
 
 type SysInfo struct {
