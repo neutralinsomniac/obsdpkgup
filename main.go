@@ -169,17 +169,17 @@ func compareVersionString(v1, v2 string) int {
 			}
 		}
 
-		// now try length
-		if len(v1s[i]) > len(v2s[i]) {
-			return -(i + 1)
-		} else if len(v1s[i]) < len(v2s[i]) {
-			return i + 1
-		}
-
 		// now try alphanumeric
 		if v1s[i] > v2s[i] {
 			return -(i + 1)
 		} else if v1s[i] < v2s[i] {
+			return i + 1
+		}
+
+		// now try length
+		if len(v1s[i]) > len(v2s[i]) {
+			return -(i + 1)
+		} else if len(v1s[i]) < len(v2s[i]) {
 			return i + 1
 		}
 	}
