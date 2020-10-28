@@ -283,6 +283,7 @@ func getMirror() string {
 var cronMode bool
 var disablePkgUp bool
 var forceSnapshot bool
+var verbose bool
 
 func main() {
 	start := time.Now()
@@ -298,6 +299,7 @@ func main() {
 	flag.BoolVar(&cronMode, "c", false, "Cron mode (only output when updates are available)")
 	flag.BoolVar(&disablePkgUp, "n", false, "Disable pkgup index (fallback to index.txt)")
 	flag.BoolVar(&forceSnapshot, "s", false, "Force checking snapshot directory for upgrades")
+	flag.BoolVar(&verbose, "v", false, "Show verbose logging information")
 
 	flag.Parse()
 
@@ -359,8 +361,10 @@ func main() {
 		allPkgs = parseIndexToPkgList(string(bodyBytes))
 	}
 
-	fmt.Fprintf(os.Stderr, "network took: %f seconds\n", float64(time.Now().Sub(start))/float64(time.Second))
-	start = time.Now()
+	if verbose {
+		fmt.Fprintf(os.Stderr, "network took: %f seconds\n", float64(time.Now().Sub(start))/float64(time.Second))
+		start = time.Now()
+	}
 
 	installedPkgs := parseLocalPkgInfoToPkgList()
 	var sortedInstalledPkgs []string
@@ -431,7 +435,10 @@ NEXTPACKAGE:
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "parse took: %f seconds\n", float64(time.Now().Sub(start))/float64(time.Second))
+	if verbose {
+		fmt.Fprintf(os.Stderr, "parse took: %f seconds\n", float64(time.Now().Sub(start))/float64(time.Second))
+	}
+
 	if len(updateList) == 0 {
 		if !cronMode {
 			fmt.Fprintf(os.Stderr, "up to date\n")
