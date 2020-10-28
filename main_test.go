@@ -47,8 +47,14 @@ func TestVersionComparison(t *testing.T) {
 		t.Errorf("expected: %d, got: %d", expected, res)
 	}
 
-	expected = 1
+	expected = 3
 	res = compareVersionString("80.1", "80.1.1")
+	if res != expected {
+		t.Errorf("expected: %d, got: %d", expected, res)
+	}
+
+	expected = -3
+	res = compareVersionString("80.1.1", "80.1")
 	if res != expected {
 		t.Errorf("expected: %d, got: %d", expected, res)
 	}

@@ -20,7 +20,12 @@ then
 	fi
 fi
 
-url="$mirror/$version/packages/$arch"
+if [ a$version = asnapshots ]
+then
+	url="$mirror/$version/packages/$arch"
+else
+	url="$mirror/$version/packages-stable/$arch"
+fi
 
 
 #old=`pkg_info -f quirks | sed -En '/@digital-sig/ s/(.*signify2:|:external)//gp'`
@@ -36,7 +41,7 @@ rm -f index.pkgup
 
 for line in $index
 do
-	pkg=$(echo "$line" |cut -b 53-)
+	pkg=$(echo "$line" |awk '{print $10}')
 	if echo $pkg |grep '\.tgz$'
 	then
 		curl $url/$pkg |tar xzqf - +CONTENTS

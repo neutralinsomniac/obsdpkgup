@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"suah.dev/protect"
 )
@@ -151,6 +152,11 @@ func min(a, b int) int {
 var numberRe = regexp.MustCompile(`^\d+`)
 
 func compareVersionString(v1, v2 string) int {
+	// early escape
+	if v1 == v2 {
+		return 0
+	}
+
 	v1s := strings.Split(v1, ".")
 	v2s := strings.Split(v2, ".")
 	min := min(len(v1s), len(v2s))
@@ -186,7 +192,13 @@ func compareVersionString(v1, v2 string) int {
 
 	// if we got here, then we have a complete prefix match up to the common length of the split arrays.
 	// return the difference in lengths to make sure that one array isn't longer than the other (to account for e.g. 81.0->81.0.2)
-	return len(v2s) - len(v1s)
+	if len(v2s) > len(v1s) {
+		return len(v2s)
+	} else if len(v1s) > len(v2s) {
+		return -len(v1s)
+	} else {
+		return 0
+	}
 }
 
 type SysInfo struct {
@@ -218,7 +230,11 @@ func getSystemInfo() SysInfo {
 }
 
 func replaceMirrorVars(mirror string, sysInfo SysInfo) string {
-	mirror = strings.ReplaceAll(mirror, "%m", "/pub/OpenBSD/%c/packages/%a/")
+	if sysInfo.snapshot {
+		mirror = strings.ReplaceAll(mirror, "%m", "/pub/OpenBSD/%c/packages/%a/")
+	} else {
+		mirror = strings.ReplaceAll(mirror, "%m", "/pub/OpenBSD/%c/packages-stable/%a/")
+	}
 	mirror = strings.ReplaceAll(mirror, "%a", sysInfo.arch)
 	mirror = strings.ReplaceAll(mirror, "%v", sysInfo.version)
 	if sysInfo.snapshot {
@@ -249,11 +265,19 @@ func getMirror() string {
 	installurlBytes, err := ioutil.ReadFile("/etc/installurl")
 	if err == nil {
 		installurl := strings.TrimSpace(string(installurlBytes))
-		return replaceMirrorVars(fmt.Sprintf("%s/%%c/packages/%%a/", installurl), sysInfo)
+		if sysInfo.snapshot {
+			return replaceMirrorVars(fmt.Sprintf("%s/%%c/packages/%%a/", installurl), sysInfo)
+		} else {
+			return replaceMirrorVars(fmt.Sprintf("%s/%%c/packages-stable/%%a/", installurl), sysInfo)
+		}
 	}
 
 	// finally, fall back to cdn
-	return replaceMirrorVars("https://cdn.openbsd.org/pub/OpenBSD/%%c/packages/%%a/", sysInfo)
+	if sysInfo.snapshot {
+		return replaceMirrorVars("https://cdn.openbsd.org/pub/OpenBSD/%%c/packages/%%a/", sysInfo)
+	} else {
+		return replaceMirrorVars("https://cdn.openbsd.org/pub/OpenBSD/%%c/packages-stable/%%a/", sysInfo)
+	}
 }
 
 var cronMode bool
@@ -261,6 +285,7 @@ var disablePkgUp bool
 var forceSnapshot bool
 
 func main() {
+	start := time.Now()
 	_ = protect.Pledge("stdio unveil rpath wpath cpath flock dns inet tty proc exec")
 	_ = protect.Unveil("/etc/resolv.conf", "r")
 	_ = protect.Unveil("/etc/installurl", "r")
@@ -309,10 +334,10 @@ func main() {
 			checkAndExit(err)
 			allPkgs = parseObsdPkgUpList(string(bodyBytes))
 		case 404:
-			fmt.Printf("Unable to locate pkgup index at '%s'.\nTry '%s -n' to disable pkgup index.\n", url, os.Args[0])
+			fmt.Fprintf(os.Stderr, "Unable to locate pkgup index at '%s'.\nTry '%s -n' to disable pkgup index.\n", url, os.Args[0])
 			os.Exit(1)
 		default:
-			fmt.Printf("unexpected HTTP response: %d\n", resp.StatusCode)
+			fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
 			os.Exit(1)
 		}
 	}
@@ -324,7 +349,7 @@ func main() {
 		defer resp.Body.Close()
 
 		if resp.StatusCode != 200 {
-			fmt.Printf("unexpected HTTP response: %d\n", resp.StatusCode)
+			fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
 			os.Exit(1)
 		}
 
@@ -333,6 +358,9 @@ func main() {
 
 		allPkgs = parseIndexToPkgList(string(bodyBytes))
 	}
+
+	fmt.Fprintf(os.Stderr, "network took: %f seconds\n", float64(time.Now().Sub(start))/float64(time.Second))
+	start = time.Now()
 
 	installedPkgs := parseLocalPkgInfoToPkgList()
 	var sortedInstalledPkgs []string
@@ -369,12 +397,6 @@ NEXTPACKAGE:
 				}
 				// now find the version that matches our current version the closest
 				versionComparisonResult = compareVersionString(installedVersion.version, remoteVersion.version)
-				//fmt.Fprintf(os.Stderr, "%s, %s, %s: %d\n", name, installedVersion.version, remoteVersion.version, versionComparisonResult)
-				if versionComparisonResult == 0 {
-					bestMatch = versionComparisonResult
-					bestVersionMatch = remoteVersion
-					break
-				}
 				if versionComparisonResult > bestMatch && versionComparisonResult > 0 {
 					bestMatch = versionComparisonResult
 					bestVersionMatch = remoteVersion
@@ -409,6 +431,7 @@ NEXTPACKAGE:
 		}
 	}
 
+	fmt.Fprintf(os.Stderr, "parse took: %f seconds\n", float64(time.Now().Sub(start))/float64(time.Second))
 	if len(updateList) == 0 {
 		if !cronMode {
 			fmt.Fprintf(os.Stderr, "up to date\n")
