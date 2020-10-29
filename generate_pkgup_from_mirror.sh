@@ -27,14 +27,6 @@ else
 	url="$mirror/$version/packages-stable/$arch"
 fi
 
-
-#old=`pkg_info -f quirks | sed -En '/@digital-sig/ s/(.*signify2:|:external)//gp'`
-#new=`PKG_DBDIR=/var/empty pkg_info -f quirks | sed -En '/@digital-sig/ s/(.*signify2:|:external)//gp'`
-#if [[ $old == $new ]]; then
-#	echo "Already up-to-date: $old"
-#	exit
-#fi
-
 index=$(curl $url/index.txt 2>/dev/null)
 
 rm -f index.pkgup
@@ -46,7 +38,8 @@ do
 	then
 		curl $url/$pkg |tar xzqf - +CONTENTS
 		hash=$(cat +CONTENTS |egrep '^@name|^@depend|^@version|^@wantlib' |sha256 -b)
-		echo "$pkg" "$hash" >> index.pkgup
+		pkgpath=$(cat +CONTENTS |grep '^@comment pkgpath' |cut -b 18- |sed -e 's/[, ].*//')
+		echo "$pkg" "$hash" "$pkgpath" >> index.pkgup
 	fi
 done
 

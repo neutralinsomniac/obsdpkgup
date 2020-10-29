@@ -26,6 +26,8 @@ type PkgVer struct {
 	version  string
 	flavor   string
 	hash     string
+	pkgpath  string
+	isBranch bool
 }
 
 // PkgList maps a package name to a list of PkgVer's
@@ -72,7 +74,9 @@ func parseLocalPkgInfoToPkgList() PkgList {
 	files, err := ioutil.ReadDir(pkgDbPath)
 	checkAndExit(err)
 
-	re := regexp.MustCompilePOSIX(`^@name .*$|^@depend .*$|^@version .*$|^@wantlib .*$`)
+	sigRe := regexp.MustCompilePOSIX(`^@name .*$|^@depend .*$|^@version .*$|^@wantlib .*$`)
+	pkgpathRe := regexp.MustCompilePOSIX(`^@comment pkgpath=([^ ,]+).*$`)
+	isBranchRe := regexp.MustCompilePOSIX(`^@option is-branch$`)
 
 	for _, file := range files {
 		pkgdir := file.Name()
@@ -81,11 +85,12 @@ func parseLocalPkgInfoToPkgList() PkgList {
 
 		f, err := os.Open(fmt.Sprintf("%s%s/+CONTENTS", pkgDbPath, pkgdir))
 		checkAndExit(err)
+		defer f.Close()
 
 		contents, err := ioutil.ReadAll(f)
 		checkAndExit(err)
 
-		matches := re.FindAll(contents, -1)
+		matches := sigRe.FindAll(contents, -1)
 
 		var data_to_hash []byte
 		for _, match := range matches {
@@ -93,29 +98,16 @@ func parseLocalPkgInfoToPkgList() PkgList {
 			data_to_hash = append(data_to_hash, '\n')
 		}
 
-		f.Close()
 		sha256sum := sha256.Sum256(data_to_hash)
 		hash := base64.StdEncoding.EncodeToString(sha256sum[:])
 		pkgVer.hash = hash
-		pkgList[pkgVer.name] = append(pkgList[pkgVer.name], *pkgVer)
-	}
-	return pkgList
-}
-
-func parseIndexToPkgList(index string) PkgList {
-	pkgList := make(PkgList)
-
-	for _, line := range strings.Split(index, "\n") {
-		if len(line) > 1 {
-			tmp := strings.Fields(line)
-			pkgFile := tmp[len(tmp)-1]
-			if !strings.HasSuffix(pkgFile, ".tgz") {
-				continue
-			}
-			pkgVer, err := convertPkgStringToPkgVer(pkgFile[:len(pkgFile)-4])
-			checkAndExit(err)
-			pkgList[pkgVer.name] = append(pkgList[pkgVer.name], *pkgVer)
+		pkgpath := pkgpathRe.FindSubmatch(contents)[1]
+		pkgVer.pkgpath = string(pkgpath)
+		if isBranchRe.Match(contents) {
+			pkgVer.isBranch = true
 		}
+
+		pkgList[pkgVer.name] = append(pkgList[pkgVer.name], *pkgVer)
 	}
 	return pkgList
 }
@@ -131,9 +123,11 @@ func parseObsdPkgUpList(pkgup string) PkgList {
 				continue
 			}
 			hash := tmp[1]
+			pkgpath := tmp[2]
 			pkgVer, err := convertPkgStringToPkgVer(pkgFile[:len(pkgFile)-4])
 			checkAndExit(err)
 			pkgVer.hash = hash
+			pkgVer.pkgpath = pkgpath
 			pkgList[pkgVer.name] = append(pkgList[pkgVer.name], *pkgVer)
 		}
 	}
@@ -169,33 +163,33 @@ func compareVersionString(v1, v2 string) int {
 			v1num, _ := strconv.Atoi(v1str)
 			v2num, _ := strconv.Atoi(v2str)
 			if v1num > v2num {
-				return -(i + 1)
+				return -1
 			} else if v1num < v2num {
-				return i + 1
+				return 1
 			}
 		}
 
 		// now try alphanumeric
 		if v1s[i] > v2s[i] {
-			return -(i + 1)
+			return -1
 		} else if v1s[i] < v2s[i] {
-			return i + 1
+			return 1
 		}
 
 		// now try length
 		if len(v1s[i]) > len(v2s[i]) {
-			return -(i + 1)
+			return -1
 		} else if len(v1s[i]) < len(v2s[i]) {
-			return i + 1
+			return 1
 		}
 	}
 
 	// if we got here, then we have a complete prefix match up to the common length of the split arrays.
 	// return the difference in lengths to make sure that one array isn't longer than the other (to account for e.g. 81.0->81.0.2)
 	if len(v2s) > len(v1s) {
-		return len(v2s)
+		return 1
 	} else if len(v1s) > len(v2s) {
-		return -len(v1s)
+		return -1
 	} else {
 		return 0
 	}
@@ -281,7 +275,6 @@ func getMirror() string {
 }
 
 var cronMode bool
-var disablePkgUp bool
 var forceSnapshot bool
 var verbose bool
 var debug bool
@@ -298,7 +291,6 @@ func main() {
 	_ = protect.Unveil("/var/db/pkg", "r")
 
 	flag.BoolVar(&cronMode, "c", false, "Cron mode (only output when updates are available)")
-	flag.BoolVar(&disablePkgUp, "n", false, "Disable pkgup index (fallback to index.txt)")
 	flag.BoolVar(&forceSnapshot, "s", false, "Force checking snapshot directory for upgrades")
 	flag.BoolVar(&verbose, "v", false, "Show verbose logging information")
 	flag.BoolVar(&debug, "d", false, "Show debug logging information")
@@ -314,53 +306,34 @@ func main() {
 	var allPkgs PkgList
 	var sysInfo SysInfo
 
-	if !disablePkgUp {
-		sysInfo = getSystemInfo()
+	sysInfo = getSystemInfo()
 
-		pkgup_url := os.Getenv("PKGUP_URL")
-		var resp *http.Response
-		var url string
-		if pkgup_url != "" {
-			url = replaceMirrorVars(fmt.Sprintf("%s/%%c/%%a/index.pkgup.gz", pkgup_url), sysInfo)
-		} else {
-			url = fmt.Sprintf("%s/index.pkgup.gz", mirror)
-		}
-		resp, err = http.Get(url)
-		checkAndExit(err)
-		defer resp.Body.Close()
-
-		switch resp.StatusCode {
-		case 200:
-			// grab body
-			r, err := gzip.NewReader(resp.Body)
-			checkAndExit(err)
-			bodyBytes, err := ioutil.ReadAll(r)
-			checkAndExit(err)
-			allPkgs = parseObsdPkgUpList(string(bodyBytes))
-		case 404:
-			fmt.Fprintf(os.Stderr, "Unable to locate pkgup index at '%s'.\nTry '%s -n' to disable pkgup index.\n", url, os.Args[0])
-			os.Exit(1)
-		default:
-			fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
-			os.Exit(1)
-		}
+	pkgup_url := os.Getenv("PKGUP_URL")
+	var resp *http.Response
+	var url string
+	if pkgup_url != "" {
+		url = replaceMirrorVars(fmt.Sprintf("%s/%%c/%%a/index.pkgup.gz", pkgup_url), sysInfo)
+	} else {
+		url = fmt.Sprintf("%s/index.pkgup.gz", mirror)
 	}
+	resp, err = http.Get(url)
+	checkAndExit(err)
+	defer resp.Body.Close()
 
-	// if we didn't find the "new style" package list yet, fallback to old style
-	if len(allPkgs) == 0 {
-		resp, err := http.Get(fmt.Sprintf("%s/index.txt", mirror))
+	switch resp.StatusCode {
+	case 200:
+		// grab body
+		r, err := gzip.NewReader(resp.Body)
 		checkAndExit(err)
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 200 {
-			fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
-			os.Exit(1)
-		}
-
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		bodyBytes, err := ioutil.ReadAll(r)
 		checkAndExit(err)
-
-		allPkgs = parseIndexToPkgList(string(bodyBytes))
+		allPkgs = parseObsdPkgUpList(string(bodyBytes))
+	case 404:
+		fmt.Fprintf(os.Stderr, "Unable to locate pkgup index at '%s'.\n", url)
+		os.Exit(1)
+	default:
+		fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
+		os.Exit(1)
 	}
 
 	if verbose {
@@ -375,7 +348,6 @@ func main() {
 	}
 	sort.Strings(sortedInstalledPkgs)
 
-NEXTPACKAGE:
 	for _, name := range sortedInstalledPkgs {
 		// quirks is treated specially; don't ever try to manually update it
 		if name == "quirks" {
@@ -389,60 +361,42 @@ NEXTPACKAGE:
 
 		installedVersions := installedPkgs[name]
 
-		// check all versions to find the "closest" match
+		// check all versions to find upgrades
 		for _, installedVersion := range installedVersions {
 			versionComparisonResult := 0
-			// figure out our "best" version match
-			var bestVersionMatch PkgVer
-			bestMatch := -1
+			bestVersionMatch := installedVersion
 		NEXTVERSION:
 			for _, remoteVersion := range allPkgs[name] {
-				// verify flavor match first
-				if remoteVersion.flavor != installedVersion.flavor {
+				// verify flavor/pkgpath match first
+				if remoteVersion.flavor != installedVersion.flavor || remoteVersion.pkgpath != installedVersion.pkgpath {
 					continue NEXTVERSION
 				}
-				// now find the version that matches our current version the closest
 
-				versionComparisonResult = compareVersionString(installedVersion.version, remoteVersion.version)
-				if versionComparisonResult > bestMatch && versionComparisonResult > 0 {
-					bestMatch = versionComparisonResult
+				// check for version bump
+				versionComparisonResult = compareVersionString(bestVersionMatch.version, remoteVersion.version)
+				if versionComparisonResult == 1 {
+					bestVersionMatch = remoteVersion
+				} else if versionComparisonResult == 0 && installedVersion.hash != remoteVersion.hash {
+					// check for same-version/different signature
 					bestVersionMatch = remoteVersion
 				}
 
-				if debug {
-					fmt.Fprintf(os.Stderr, "%s, %s, %s: %d\n", name, installedVersion.version, remoteVersion.version, versionComparisonResult)
-				}
-				if versionComparisonResult == 0 {
-					bestMatch = versionComparisonResult
-					bestVersionMatch = remoteVersion
-					break
-				}
 			}
 
-			// we didn't find a match :<
-			if bestVersionMatch.fullName == "" {
-				continue NEXTPACKAGE
-			}
-
-			switch {
-			case bestMatch > 0:
-				// version was changed; straight upgrade
-				updateList[name] = true
+			// did we find an upgrade?
+			if bestVersionMatch != installedVersion {
+				var index string
+				if installedVersion.isBranch {
+					index = fmt.Sprintf("%s%%%s", name, installedVersion.pkgpath)
+				} else {
+					index = name
+				}
+				updateList[index] = true
 				fmt.Fprintf(os.Stderr, "%s->%s", installedVersion.fullName, bestVersionMatch.version)
 				if installedVersion.flavor != "" {
 					fmt.Fprintf(os.Stderr, "-%s", installedVersion.flavor)
 				}
 				fmt.Fprintf(os.Stderr, "\n")
-			case bestMatch == 0:
-				// version is the same; check sha
-				if bestVersionMatch.hash != "" && installedVersion.hash != bestVersionMatch.hash {
-					updateList[name] = true
-					fmt.Fprintf(os.Stderr, "%s->%s", installedVersion.fullName, bestVersionMatch.version)
-					if installedVersion.flavor != "" {
-						fmt.Fprintf(os.Stderr, "-%s", installedVersion.flavor)
-					}
-					fmt.Fprintf(os.Stderr, "\n")
-				}
 			}
 		}
 	}
