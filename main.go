@@ -400,6 +400,13 @@ NEXTPACKAGE:
 					continue NEXTVERSION
 				}
 				// now find the version that matches our current version the closest
+				//fmt.Fprintf(os.Stderr, "%s, %s, %s: %d\n", name, installedVersion.version, remoteVersion.version, versionComparisonResult)
+				if versionComparisonResult == 0 {
+					bestMatch = versionComparisonResult
+					bestVersionMatch = remoteVersion
+					break
+				}
+
 				versionComparisonResult = compareVersionString(installedVersion.version, remoteVersion.version)
 				if versionComparisonResult > bestMatch && versionComparisonResult > 0 {
 					bestMatch = versionComparisonResult
