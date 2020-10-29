@@ -284,6 +284,7 @@ var cronMode bool
 var disablePkgUp bool
 var forceSnapshot bool
 var verbose bool
+var debug bool
 
 func main() {
 	start := time.Now()
@@ -300,6 +301,7 @@ func main() {
 	flag.BoolVar(&disablePkgUp, "n", false, "Disable pkgup index (fallback to index.txt)")
 	flag.BoolVar(&forceSnapshot, "s", false, "Force checking snapshot directory for upgrades")
 	flag.BoolVar(&verbose, "v", false, "Show verbose logging information")
+	flag.BoolVar(&debug, "d", false, "Show debug logging information")
 
 	flag.Parse()
 
@@ -400,17 +402,20 @@ NEXTPACKAGE:
 					continue NEXTVERSION
 				}
 				// now find the version that matches our current version the closest
-				//fmt.Fprintf(os.Stderr, "%s, %s, %s: %d\n", name, installedVersion.version, remoteVersion.version, versionComparisonResult)
-				if versionComparisonResult == 0 {
-					bestMatch = versionComparisonResult
-					bestVersionMatch = remoteVersion
-					break
-				}
 
 				versionComparisonResult = compareVersionString(installedVersion.version, remoteVersion.version)
 				if versionComparisonResult > bestMatch && versionComparisonResult > 0 {
 					bestMatch = versionComparisonResult
 					bestVersionMatch = remoteVersion
+				}
+
+				if debug {
+					fmt.Fprintf(os.Stderr, "%s, %s, %s: %d\n", name, installedVersion.version, remoteVersion.version, versionComparisonResult)
+				}
+				if versionComparisonResult == 0 {
+					bestMatch = versionComparisonResult
+					bestVersionMatch = remoteVersion
+					break
 				}
 			}
 
