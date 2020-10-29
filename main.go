@@ -146,10 +146,6 @@ func min(a, b int) int {
 
 var numberRe = regexp.MustCompile(`^\d+`)
 
-func compareVersionString(v1, v2 string) int {
-	return version.CompareSimple(v2, v1)
-}
-
 type SysInfo struct {
 	arch     string
 	version  string
@@ -328,7 +324,7 @@ func main() {
 				}
 
 				// check for version bump
-				versionComparisonResult = compareVersionString(bestVersionMatch.version, remoteVersion.version)
+				versionComparisonResult = version.CompareSimple(remoteVersion.version, bestVersionMatch.version)
 				if versionComparisonResult == 1 {
 					bestVersionMatch = remoteVersion
 				} else if versionComparisonResult == 0 && installedVersion.hash != remoteVersion.hash {
