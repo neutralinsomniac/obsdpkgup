@@ -12,10 +12,10 @@ import (
 	"os/exec"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/mcuadros/go-version"
 	"suah.dev/protect"
 )
 
@@ -85,10 +85,11 @@ func parseLocalPkgInfoToPkgList() PkgList {
 
 		f, err := os.Open(fmt.Sprintf("%s%s/+CONTENTS", pkgDbPath, pkgdir))
 		checkAndExit(err)
-		defer f.Close()
 
 		contents, err := ioutil.ReadAll(f)
 		checkAndExit(err)
+
+		f.Close()
 
 		matches := sigRe.FindAll(contents, -1)
 
@@ -146,53 +147,7 @@ func min(a, b int) int {
 var numberRe = regexp.MustCompile(`^\d+`)
 
 func compareVersionString(v1, v2 string) int {
-	// early escape
-	if v1 == v2 {
-		return 0
-	}
-
-	v1s := strings.Split(v1, ".")
-	v2s := strings.Split(v2, ".")
-	min := min(len(v1s), len(v2s))
-
-	for i := 0; i < min; i++ {
-		// first, snag and compare the int portions
-		v1str := numberRe.FindString(v1s[i])
-		v2str := numberRe.FindString(v2s[i])
-		if v1str != "" && v2str != "" {
-			v1num, _ := strconv.Atoi(v1str)
-			v2num, _ := strconv.Atoi(v2str)
-			if v1num > v2num {
-				return -1
-			} else if v1num < v2num {
-				return 1
-			}
-		}
-
-		// now try alphanumeric
-		if v1s[i] > v2s[i] {
-			return -1
-		} else if v1s[i] < v2s[i] {
-			return 1
-		}
-
-		// now try length
-		if len(v1s[i]) > len(v2s[i]) {
-			return -1
-		} else if len(v1s[i]) < len(v2s[i]) {
-			return 1
-		}
-	}
-
-	// if we got here, then we have a complete prefix match up to the common length of the split arrays.
-	// return the difference in lengths to make sure that one array isn't longer than the other (to account for e.g. 81.0->81.0.2)
-	if len(v2s) > len(v1s) {
-		return 1
-	} else if len(v1s) > len(v2s) {
-		return -1
-	} else {
-		return 0
-	}
+	return version.CompareSimple(v2, v1)
 }
 
 type SysInfo struct {

@@ -11,6 +11,11 @@ func TestVersionComparison(t *testing.T) {
 		t.Errorf("expected: %d, got: %d", expected, res)
 	}
 
+	res = compareVersionString("1.14.7v3", "1.14.7p0v3")
+	if res != expected {
+		t.Errorf("expected: %d, got: %d", expected, res)
+	}
+
 	res = compareVersionString("80.1", "80.2")
 	if res != expected {
 		t.Errorf("expected: %d, got: %d", expected, res)
@@ -27,11 +32,6 @@ func TestVersionComparison(t *testing.T) {
 	}
 
 	res = compareVersionString("80.1a", "80.1b")
-	if res != expected {
-		t.Errorf("expected: %d, got: %d", expected, res)
-	}
-
-	res = compareVersionString("80.1a", "80.1aa")
 	if res != expected {
 		t.Errorf("expected: %d, got: %d", expected, res)
 	}
@@ -68,6 +68,11 @@ func TestVersionComparison(t *testing.T) {
 	}
 
 	res = compareVersionString("80.1.1", "80.1")
+	if res != expected {
+		t.Errorf("expected: %d, got: %d", expected, res)
+	}
+
+	res = compareVersionString("80.1a", "80.1aa")
 	if res != expected {
 		t.Errorf("expected: %d, got: %d", expected, res)
 	}
