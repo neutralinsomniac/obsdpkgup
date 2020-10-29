@@ -22,15 +22,11 @@ up to date
 
 `PKGUP_URL=https://pintobyte.com/pkgup/ obsdpkgup`
 
-### Check for upgrades using index.txt:
-`obsdpkgup -n`
-
 ### Force checking snapshot directory for upgrades:
 `obsdpkgup -s`
 
 ### Run and apply found package upgrades:
 `obsdpkgup |doas sh`
-
 
 ### Cron mode (don't output anything when packages are up-to-date):
 `obsdpkgup -c`
@@ -60,11 +56,11 @@ present. If this index is solely relied on as a source of truth, then Bad
 Things can happen when an upgrade is attempted.
 
 Because a central index may not accurately reflect the current state of a
-mirror, **obsdpkgup** uses the index to seed a `pkg_add -u` call with a subset
-of packages it *thinks* have upgrades (with version numbers removed, to allow
-for flexibility in the mirror state). This prevents `pkg_add` from having to
-check every installed package individually, and instead enables it to check a
-much smaller list of potential upgrade candidates. This way, `pkg_add` will
+mirror, **obsdpkgup** uses its own index to seed a `pkg_add -u` call with a
+subset of packages it *thinks* have upgrades (with version numbers removed, to
+allow for flexibility in the mirror state). This prevents `pkg_add` from having
+to check every installed package individually, and instead enables it to check
+a much smaller list of potential upgrade candidates. This way, `pkg_add` will
 either do what it would've done with a full `pkg_add -u` call anyway (but with
 a much smaller list of packages to check), or in the case of a de-synced index,
 maybe report that a subset of the package candidate(s) are up-to-date, which
