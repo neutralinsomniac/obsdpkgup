@@ -16,7 +16,7 @@ then
 	then
 		version="snapshots"
 	else
-		version=$(sysctl -n kern.version |head -n 1 |cut -b 9-11)
+		version=$(sysctl -n kern.version |head -n 1 |awk '{print $2}')
 	fi
 fi
 
