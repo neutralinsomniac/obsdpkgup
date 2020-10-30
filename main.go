@@ -113,6 +113,24 @@ func parseLocalPkgInfoToPkgList() PkgList {
 	return pkgList
 }
 
+func parseIndexToPkgList(index string) PkgList {
+	pkgList := make(PkgList)
+
+	for _, line := range strings.Split(index, "\n") {
+		if len(line) > 1 {
+			tmp := strings.Fields(line)
+			pkgFile := tmp[len(tmp)-1]
+			if !strings.HasSuffix(pkgFile, ".tgz") {
+				continue
+			}
+			pkgVer, err := convertPkgStringToPkgVer(pkgFile[:len(pkgFile)-4])
+			checkAndExit(err)
+			pkgList[pkgVer.name] = append(pkgList[pkgVer.name], *pkgVer)
+		}
+	}
+	return pkgList
+}
+
 func parseObsdPkgUpList(pkgup string) PkgList {
 	pkgList := make(PkgList)
 
@@ -230,6 +248,7 @@ func getMirror() string {
 }
 
 var cronMode bool
+var disablePkgUp bool
 var forceSnapshot bool
 var verbose bool
 var debug bool
@@ -246,6 +265,7 @@ func main() {
 	_ = protect.Unveil("/var/db/pkg", "r")
 
 	flag.BoolVar(&cronMode, "c", false, "Cron mode (only output when updates are available)")
+	flag.BoolVar(&disablePkgUp, "n", false, "Disable pkgup index (fallback to index.txt)")
 	flag.BoolVar(&forceSnapshot, "s", false, "Force checking snapshot directory for upgrades")
 	flag.BoolVar(&verbose, "v", false, "Show verbose logging information")
 	flag.BoolVar(&debug, "d", false, "Show debug logging information")
@@ -261,34 +281,52 @@ func main() {
 	var allPkgs PkgList
 	var sysInfo SysInfo
 
-	sysInfo = getSystemInfo()
+	if !disablePkgUp {
+		sysInfo = getSystemInfo()
 
-	pkgup_url := os.Getenv("PKGUP_URL")
-	var resp *http.Response
-	var url string
-	if pkgup_url != "" {
-		url = replaceMirrorVars(fmt.Sprintf("%s/%%c/%%a/index.pkgup.gz", pkgup_url), sysInfo)
-	} else {
-		url = fmt.Sprintf("%s/index.pkgup.gz", mirror)
+		pkgup_url := os.Getenv("PKGUP_URL")
+		var resp *http.Response
+		var url string
+		if pkgup_url != "" {
+			url = replaceMirrorVars(fmt.Sprintf("%s/%%c/%%a/index.pkgup.gz", pkgup_url), sysInfo)
+		} else {
+			url = fmt.Sprintf("%s/index.pkgup.gz", mirror)
+		}
+		resp, err = http.Get(url)
+		checkAndExit(err)
+		defer resp.Body.Close()
+
+		switch resp.StatusCode {
+		case 200:
+			// grab body
+			r, err := gzip.NewReader(resp.Body)
+			checkAndExit(err)
+			bodyBytes, err := ioutil.ReadAll(r)
+			checkAndExit(err)
+			allPkgs = parseObsdPkgUpList(string(bodyBytes))
+		case 404:
+			fmt.Fprintf(os.Stderr, "Unable to locate pkgup index at '%s'.\nTry '%s -n' to disable pkgup index.\n", url, os.Args[0])
+			os.Exit(1)
+		default:
+			fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
+			os.Exit(1)
+		}
 	}
-	resp, err = http.Get(url)
-	checkAndExit(err)
-	defer resp.Body.Close()
+	// if we didn't find the "new style" package list yet, fallback to old style
+	if len(allPkgs) == 0 {
+		resp, err := http.Get(fmt.Sprintf("%s/index.txt", mirror))
+		checkAndExit(err)
+		defer resp.Body.Close()
 
-	switch resp.StatusCode {
-	case 200:
-		// grab body
-		r, err := gzip.NewReader(resp.Body)
+		if resp.StatusCode != 200 {
+			fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
+			os.Exit(1)
+		}
+
+		bodyBytes, err := ioutil.ReadAll(resp.Body)
 		checkAndExit(err)
-		bodyBytes, err := ioutil.ReadAll(r)
-		checkAndExit(err)
-		allPkgs = parseObsdPkgUpList(string(bodyBytes))
-	case 404:
-		fmt.Fprintf(os.Stderr, "Unable to locate pkgup index at '%s'.\n", url)
-		os.Exit(1)
-	default:
-		fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
-		os.Exit(1)
+
+		allPkgs = parseIndexToPkgList(string(bodyBytes))
 	}
 
 	if verbose {
