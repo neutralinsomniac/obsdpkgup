@@ -40,7 +40,7 @@ func checkAndExit(e error) {
 	}
 }
 
-var numRE = regexp.MustCompile(`^[0-9\.]+.*$`)
+var numRE = regexp.MustCompile(`^[0-9.]+.*$`)
 
 // returns: package shortname, pkgVer struct
 func convertPkgStringToPkgVer(pkgStr string) (*PkgVer, error) {
@@ -93,13 +93,13 @@ func parseLocalPkgInfoToPkgList() PkgList {
 
 		matches := sigRe.FindAll(contents, -1)
 
-		var data_to_hash []byte
+		var dataToHash []byte
 		for _, match := range matches {
-			data_to_hash = append(data_to_hash, match...)
-			data_to_hash = append(data_to_hash, '\n')
+			dataToHash = append(dataToHash, match...)
+			dataToHash = append(dataToHash, '\n')
 		}
 
-		sha256sum := sha256.Sum256(data_to_hash)
+		sha256sum := sha256.Sum256(dataToHash)
 		hash := base64.StdEncoding.EncodeToString(sha256sum[:])
 		pkgVer.hash = hash
 		pkgpath := pkgpathRe.FindSubmatch(contents)[1]
@@ -154,16 +154,6 @@ func parseObsdPkgUpList(pkgup string) PkgList {
 	return pkgList
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	} else {
-		return b
-	}
-}
-
-var numberRe = regexp.MustCompile(`^\d+`)
-
 func compareVersionString(v1, v2 string) int {
 	return version.CompareSimple(v2, v1)
 }
@@ -217,15 +207,15 @@ func getMirror() string {
 	sysInfo := getSystemInfo()
 
 	// TRUSTED_PKG_PATH env var is tested first
-	trusted_pkg_path := os.Getenv("TRUSTED_PKG_PATH")
-	if trusted_pkg_path != "" {
-		return replaceMirrorVars(trusted_pkg_path, sysInfo)
+	trustedPkgPath := os.Getenv("TRUSTED_PKG_PATH")
+	if trustedPkgPath != "" {
+		return replaceMirrorVars(trustedPkgPath, sysInfo)
 	}
 
 	// PKG_PATH is tested next
-	pkg_path := os.Getenv("PKG_PATH")
-	if pkg_path != "" {
-		return replaceMirrorVars(pkg_path, sysInfo)
+	pkgPath := os.Getenv("PKG_PATH")
+	if pkgPath != "" {
+		return replaceMirrorVars(pkgPath, sysInfo)
 	}
 
 	// next, try /etc/installurl
@@ -284,11 +274,11 @@ func main() {
 	if !disablePkgUp {
 		sysInfo = getSystemInfo()
 
-		pkgup_url := os.Getenv("PKGUP_URL")
+		pkgupUrl := os.Getenv("PKGUP_URL")
 		var resp *http.Response
 		var url string
-		if pkgup_url != "" {
-			url = replaceMirrorVars(fmt.Sprintf("%s/%%c/%%a/index.pkgup.gz", pkgup_url), sysInfo)
+		if pkgupUrl != "" {
+			url = replaceMirrorVars(fmt.Sprintf("%s/%%c/%%a/index.pkgup.gz", pkgupUrl), sysInfo)
 		} else {
 			url = fmt.Sprintf("%s/index.pkgup.gz", mirror)
 		}
