@@ -26,7 +26,7 @@ func getContentsFromPkgUrl(url string) []byte {
 	case 200:
 		gz, err := gzip.NewReader(resp.Body)
 		if err != nil {
-			panic(err)
+			panic(fmt.Sprintf("%s: %s", url, err))
 		}
 
 		tar := tar2.NewReader(gz)
