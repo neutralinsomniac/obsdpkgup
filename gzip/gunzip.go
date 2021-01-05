@@ -77,7 +77,8 @@ type Reader struct {
 	decompressor io.ReadCloser
 	digest       uint32 // CRC-32, IEEE polynomial (section 8)
 	size         uint32 // Uncompressed size (section 2.3.1)
-	buf          [1048576]byte
+	buf          [512]byte
+	commentBuf   [1048576]byte
 	err          error
 	multistream  bool
 }
@@ -132,6 +133,37 @@ func (z *Reader) Reset(r io.Reader) error {
 // If there is no next stream, z.Reset(r) will return io.EOF.
 func (z *Reader) Multistream(ok bool) {
 	z.multistream = ok
+}
+
+func (z *Reader) readComment() (string, error) {
+	var err error
+	needConv := false
+	for i := 0; ; i++ {
+		if i >= len(z.commentBuf) {
+			return "", ErrHeader
+		}
+		z.commentBuf[i], err = z.r.ReadByte()
+		if err != nil {
+			return "", err
+		}
+		if z.commentBuf[i] > 0x7f {
+			needConv = true
+		}
+		if z.commentBuf[i] == 0 {
+			// Digest covers the NUL terminator.
+			z.digest = crc32.Update(z.digest, crc32.IEEETable, z.commentBuf[:i+1])
+
+			// Strings are ISO 8859-1, Latin-1 (RFC 1952, section 2.3.1).
+			if needConv {
+				s := make([]rune, 0, i)
+				for _, v := range z.commentBuf[:i] {
+					s = append(s, rune(v))
+				}
+				return string(s), nil
+			}
+			return string(z.commentBuf[:i]), nil
+		}
+	}
 }
 
 // readString reads a NUL-terminated string from z.r.
@@ -217,7 +249,7 @@ func (z *Reader) readHeader() (hdr Header, err error) {
 	}
 
 	if flg&flagComment != 0 {
-		if s, err = z.readString(); err != nil {
+		if s, err = z.readComment(); err != nil {
 			return hdr, err
 		}
 		hdr.Comment = s
