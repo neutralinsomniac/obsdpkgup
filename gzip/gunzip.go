@@ -78,7 +78,7 @@ type Reader struct {
 	digest       uint32 // CRC-32, IEEE polynomial (section 8)
 	size         uint32 // Uncompressed size (section 2.3.1)
 	buf          [512]byte
-	commentBuf   [1048576]byte
+	commentBuf   [4194304]byte
 	err          error
 	multistream  bool
 }
