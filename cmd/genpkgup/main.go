@@ -57,6 +57,7 @@ func getContentsFromPkgUrl(url string) []byte {
 var mirror string
 var arch string
 var version string
+var showProgress bool
 
 var sigRe = regexp.MustCompilePOSIX(`^@name .*$|^@depend .*$|^@version .*$|^@wantlib .*$`)
 var pkgpathRe = regexp.MustCompilePOSIX(`^@comment pkgpath=([^ ,]+).*$`)
@@ -65,6 +66,7 @@ func main() {
 	flag.StringVar(&mirror, "m", "https://cdn.openbsd.org/pub/OpenBSD", "Mirror URL")
 	flag.StringVar(&arch, "a", "", "Architecture")
 	flag.StringVar(&version, "v", "", "Version")
+	flag.BoolVar(&showProgress, "p", false, "Show progress")
 
 	flag.Parse()
 
@@ -107,7 +109,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	for _, line := range strings.Split(indexString, "\n") {
+	lines := strings.Split(indexString, "\n")
+	numPkgsToProcess := len(lines)
+	for i, line := range lines {
+		if showProgress {
+			fmt.Fprintf(os.Stderr, "\r%d/%d", i, numPkgsToProcess)
+		}
 		if len(line) == 0 {
 			continue
 		}
