@@ -17,7 +17,8 @@ import (
 func getContentsFromPkgUrl(url string) []byte {
 	resp, err := http.Get(url)
 	if err != nil {
-		panic(fmt.Sprintf("%s: %s", url, err))
+		fmt.Fprintf(os.Stderr, "Error downloading package %s: %s\n", url, err)
+		goto Error
 	}
 
 	defer resp.Body.Close()
@@ -26,31 +27,35 @@ func getContentsFromPkgUrl(url string) []byte {
 	case 200:
 		gz, err := gzip.NewReader(resp.Body)
 		if err != nil {
-			panic(fmt.Sprintf("%s: %s", url, err))
+			fmt.Fprintf(os.Stderr, "Error decompressing %s: %s\n", url, err)
+			goto Error
 		}
 
 		tar := tar2.NewReader(gz)
 
 		hdr, err := tar.Next()
 		if err != nil {
-			panic(err)
+			fmt.Fprintf(os.Stderr, "Error decompressing %s: %s\n", url, err)
+			goto Error
 		}
 		for err == nil && hdr.Name != "+CONTENTS" {
 			hdr, err = tar.Next()
 			if err != nil {
-				panic(err)
+				fmt.Fprintf(os.Stderr, "Error walking archive %s: %s\n", url, err)
+				goto Error
 			}
 		}
 		contents, _ := ioutil.ReadAll(tar)
 		return contents
 	case 404:
-		fmt.Fprintf(os.Stderr, "404")
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "404 while downloading package: %s\n", url)
+		goto Error
 	default:
-		fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "unexpected HTTP response (%d) while downloading package: %s\n", resp.StatusCode, url)
+		goto Error
 	}
 
+Error:
 	return []byte{}
 }
 
@@ -87,9 +92,11 @@ func main() {
 		url = fmt.Sprintf("%s/%s/packages-stable/%s", mirror, version, arch)
 	}
 
-	resp, err := http.Get(fmt.Sprintf("%s/index.txt", url))
+	indexUrl := fmt.Sprintf("%s/index.txt", url)
+	resp, err := http.Get(indexUrl)
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "Error downloading package index %s: %s\n", indexUrl, err)
+		os.Exit(1)
 	}
 
 	var indexBytes []byte
@@ -98,14 +105,15 @@ func main() {
 	case 200:
 		indexBytes, err = ioutil.ReadAll(resp.Body)
 		if err != nil {
-			panic(err)
+			fmt.Fprintf(os.Stderr, "Couldn't read index %s: %s\n", indexUrl, err)
+			os.Exit(1)
 		}
 		indexString = string(indexBytes)
 	case 404:
-		fmt.Fprintf(os.Stderr, "404")
+		fmt.Fprintf(os.Stderr, "404 encountered while downloading index: %s\n", indexUrl)
 		os.Exit(1)
 	default:
-		fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
+		fmt.Fprintf(os.Stderr, "unexpected HTTP response (%d) while downloading index: %s\n", resp.StatusCode, indexUrl)
 		os.Exit(1)
 	}
 
@@ -120,10 +128,15 @@ func main() {
 		}
 		s := strings.Fields(line)
 		pkgName := s[9]
+		// doesn't look like a package to me
 		if !strings.HasSuffix(pkgName, ".tgz") {
 			continue
 		}
 		contents := getContentsFromPkgUrl(fmt.Sprintf("%s/%s", url, pkgName))
+		if len(contents) == 0 {
+			// if we failed to get/decompress +CONTENTS, skip this package
+			continue
+		}
 		matches := sigRe.FindAll(contents, -1)
 
 		var dataToHash []byte
