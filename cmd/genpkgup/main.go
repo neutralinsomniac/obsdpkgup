@@ -93,19 +93,19 @@ func main() {
 	// retrieve the index.txt first
 	indexString, err := openbsd.GetIndexTxt(url)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to retrieve index.txt at %s: %s", url, err)
+		fmt.Fprintf(os.Stderr, "failed to retrieve index.txt at %s: %s\n", url, err)
 		os.Exit(1)
 	}
 
 	// snag quirks for timestamp
 	quirksSignifyBlock, err := openbsd.GetQuirksSignifyBlockFromIndex(url, indexString)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err)
+		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
 	quirksDate, err := openbsd.GetSignifyTimestampFromSignifyBlock(quirksSignifyBlock)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s", err)
+		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
 	fmt.Println(quirksDate)

@@ -278,7 +278,7 @@ func main() {
 		// now parse the actual package list
 		allPkgs = parseObsdPkgUpList(string(bodyBytes[quirksEndIndex:]))
 	case 404:
-		fmt.Fprintf(os.Stderr, "unable to locate pkgup index at '%s'.\nTry '%s -n' to disable pkgup index.\n", pkgUpIndexUrl, os.Args[0])
+		fmt.Fprintf(os.Stderr, "unable to locate pkgup index at '%s'.\n", pkgUpIndexUrl, os.Args[0])
 		os.Exit(1)
 	default:
 		fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
