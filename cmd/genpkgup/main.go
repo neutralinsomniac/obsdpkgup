@@ -2,11 +2,10 @@ package main
 
 import (
 	tar2 "archive/tar"
-	"crypto/sha256"
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"github.com/neutralinsomniac/obsdpkgup/gzip"
+	"github.com/neutralinsomniac/obsdpkgup/openbsd"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -64,7 +63,6 @@ var arch string
 var version string
 var showProgress bool
 
-var sigRe = regexp.MustCompilePOSIX(`^@name .*$|^@depend .*$|^@version .*$|^@wantlib .*$`)
 var pkgpathRe = regexp.MustCompilePOSIX(`^@comment pkgpath=([^ ,]+).*$`)
 
 func main() {
@@ -84,7 +82,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error: Must specify arch (-a)\n")
 		os.Exit(1)
 	}
-	// retrieve the index.txt first
+
 	var url string
 	if version == "snapshots" {
 		url = fmt.Sprintf("%s/%s/packages/%s", mirror, version, arch)
@@ -92,30 +90,25 @@ func main() {
 		url = fmt.Sprintf("%s/%s/packages-stable/%s", mirror, version, arch)
 	}
 
-	indexUrl := fmt.Sprintf("%s/index.txt", url)
-	resp, err := http.Get(indexUrl)
+	// retrieve the index.txt first
+	indexString, err := openbsd.GetIndexTxt(url)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error downloading package index %s: %s\n", indexUrl, err)
+		fmt.Fprintf(os.Stderr, "failed to retrieve index.txt at %s: %s", url, err)
 		os.Exit(1)
 	}
 
-	var indexBytes []byte
-	var indexString string
-	switch resp.StatusCode {
-	case 200:
-		indexBytes, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Couldn't read index %s: %s\n", indexUrl, err)
-			os.Exit(1)
-		}
-		indexString = string(indexBytes)
-	case 404:
-		fmt.Fprintf(os.Stderr, "404 encountered while downloading index: %s\n", indexUrl)
-		os.Exit(1)
-	default:
-		fmt.Fprintf(os.Stderr, "unexpected HTTP response (%d) while downloading index: %s\n", resp.StatusCode, indexUrl)
+	// snag quirks for timestamp
+	quirksSignifyBlock, err := openbsd.GetQuirksSignifyBlockFromIndex(url, indexString)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s", err)
 		os.Exit(1)
 	}
+	quirksDate, err := openbsd.GetSignifyTimestampFromSignifyBlock(quirksSignifyBlock)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s", err)
+		os.Exit(1)
+	}
+	fmt.Println(quirksDate)
 
 	lines := strings.Split(indexString, "\n")
 	numPkgsToProcess := len(lines)
@@ -137,19 +130,11 @@ func main() {
 			// if we failed to get/decompress +CONTENTS, skip this package
 			continue
 		}
-		matches := sigRe.FindAll(contents, -1)
 
-		var dataToHash []byte
-		for _, match := range matches {
-			dataToHash = append(dataToHash, match...)
-			dataToHash = append(dataToHash, '\n')
-		}
-
-		sha256sum := sha256.Sum256(dataToHash)
-		hash := base64.StdEncoding.EncodeToString(sha256sum[:])
+		signature := openbsd.GenerateSignatureFromContents(contents)
 
 		pkgPath := pkgpathRe.FindSubmatch(contents)[1]
 
-		fmt.Printf("%s %s %s\n", pkgName, hash, pkgPath)
+		fmt.Printf("%s %s %s\n", pkgName, signature, pkgPath)
 	}
 }

@@ -1,11 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"compress/gzip"
-	"crypto/sha256"
-	"encoding/base64"
 	"flag"
 	"fmt"
+	"github.com/neutralinsomniac/obsdpkgup/openbsd"
+	version2 "github.com/neutralinsomniac/obsdpkgup/openbsd/version"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -15,19 +16,30 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mcuadros/go-version"
 	"suah.dev/protect"
 )
 
 // PkgVer represents an individual entry in our package index
 type PkgVer struct {
-	name     string
-	fullName string
-	version  string
-	flavor   string
-	hash     string
-	pkgpath  string
-	isBranch bool
+	name      string
+	fullName  string
+	version   version2.Version
+	flavor    string
+	signature string
+	pkgpath   string
+	isBranch  bool
+}
+
+func (p PkgVer) Equals(o PkgVer) bool {
+	if p.signature != o.signature {
+		return false
+	}
+
+	return true
+}
+
+func (p PkgVer) String() string {
+	return p.fullName
 }
 
 // PkgList maps a package name to a list of PkgVer's
@@ -42,29 +54,28 @@ func checkAndExit(e error) {
 
 var numRE = regexp.MustCompile(`^[0-9.]+.*$`)
 
-// returns: package shortname, pkgVer struct
-func convertPkgStringToPkgVer(pkgStr string) (*PkgVer, error) {
+// returns: pkgVer struct, error
+func NewPkgVerFromString(pkgStr string) (PkgVer, error) {
 	pkgFileSlice := strings.Split(pkgStr, "-")
 	// pkgFileSlice: "[x, y, 1.2.3p4, flavor1, flavor2]"
 	// walk backwards until we find the version
-	pkgVersion := ""
 	for i := len(pkgFileSlice) - 1; i >= 0; i-- {
 		// found version!
 		if numRE.MatchString(pkgFileSlice[i]) {
-			pkgVersion = pkgFileSlice[i]
+			version := version2.NewVersionFromString(pkgFileSlice[i])
 			flavor := ""
 			if len(pkgFileSlice[i:]) > 1 {
 				flavor = strings.Join(pkgFileSlice[i+1:], "-")
 			}
-			return &PkgVer{
+			return PkgVer{
 				fullName: pkgStr,
-				version:  pkgVersion,
+				version:  version,
 				flavor:   flavor,
 				name:     strings.Join(pkgFileSlice[:i], "-"),
 			}, nil
 		}
 	}
-	return nil, fmt.Errorf("couldn't find version in pkg: %q\n", pkgStr)
+	return PkgVer{}, fmt.Errorf("couldn't find version in pkg: %q\n", pkgStr)
 }
 
 func parseLocalPkgInfoToPkgList() PkgList {
@@ -74,13 +85,12 @@ func parseLocalPkgInfoToPkgList() PkgList {
 	files, err := ioutil.ReadDir(pkgDbPath)
 	checkAndExit(err)
 
-	sigRe := regexp.MustCompilePOSIX(`^@name .*$|^@depend .*$|^@version .*$|^@wantlib .*$`)
 	pkgpathRe := regexp.MustCompilePOSIX(`^@comment pkgpath=([^ ,]+).*$`)
 	isBranchRe := regexp.MustCompilePOSIX(`^@option is-branch$`)
 
 	for _, file := range files {
 		pkgdir := file.Name()
-		pkgVer, err := convertPkgStringToPkgVer(pkgdir)
+		pkgVer, err := NewPkgVerFromString(pkgdir)
 		checkAndExit(err)
 
 		f, err := os.Open(fmt.Sprintf("%s%s/+CONTENTS", pkgDbPath, pkgdir))
@@ -91,42 +101,14 @@ func parseLocalPkgInfoToPkgList() PkgList {
 
 		f.Close()
 
-		matches := sigRe.FindAll(contents, -1)
-
-		var dataToHash []byte
-		for _, match := range matches {
-			dataToHash = append(dataToHash, match...)
-			dataToHash = append(dataToHash, '\n')
-		}
-
-		sha256sum := sha256.Sum256(dataToHash)
-		hash := base64.StdEncoding.EncodeToString(sha256sum[:])
-		pkgVer.hash = hash
+		pkgVer.signature = openbsd.GenerateSignatureFromContents(contents)
 		pkgpath := pkgpathRe.FindSubmatch(contents)[1]
 		pkgVer.pkgpath = string(pkgpath)
 		if isBranchRe.Match(contents) {
 			pkgVer.isBranch = true
 		}
 
-		pkgList[pkgVer.name] = append(pkgList[pkgVer.name], *pkgVer)
-	}
-	return pkgList
-}
-
-func parseIndexToPkgList(index string) PkgList {
-	pkgList := make(PkgList)
-
-	for _, line := range strings.Split(index, "\n") {
-		if len(line) > 1 {
-			tmp := strings.Fields(line)
-			pkgFile := tmp[len(tmp)-1]
-			if !strings.HasSuffix(pkgFile, ".tgz") {
-				continue
-			}
-			pkgVer, err := convertPkgStringToPkgVer(pkgFile[:len(pkgFile)-4])
-			checkAndExit(err)
-			pkgList[pkgVer.name] = append(pkgList[pkgVer.name], *pkgVer)
-		}
+		pkgList[pkgVer.name] = append(pkgList[pkgVer.name], pkgVer)
 	}
 	return pkgList
 }
@@ -141,21 +123,17 @@ func parseObsdPkgUpList(pkgup string) PkgList {
 			if !strings.HasSuffix(pkgFile, ".tgz") {
 				continue
 			}
-			hash := tmp[1]
+			signature := tmp[1]
 			pkgpath := tmp[2]
-			pkgVer, err := convertPkgStringToPkgVer(pkgFile[:len(pkgFile)-4])
+			pkgVer, err := NewPkgVerFromString(pkgFile[:len(pkgFile)-4])
 			checkAndExit(err)
-			pkgVer.hash = hash
+			pkgVer.signature = signature
 			pkgVer.pkgpath = pkgpath
-			pkgList[pkgVer.name] = append(pkgList[pkgVer.name], *pkgVer)
+			pkgList[pkgVer.name] = append(pkgList[pkgVer.name], pkgVer)
 		}
 	}
 
 	return pkgList
-}
-
-func compareVersionString(v1, v2 string) int {
-	return version.CompareSimple(v2, v1)
 }
 
 type SysInfo struct {
@@ -238,7 +216,6 @@ func getMirror() string {
 }
 
 var cronMode bool
-var disablePkgUp bool
 var forceSnapshot bool
 var verbose bool
 var debug bool
@@ -255,7 +232,6 @@ func main() {
 	_ = protect.Unveil("/var/db/pkg", "r")
 
 	flag.BoolVar(&cronMode, "c", false, "Cron mode (only output when updates are available)")
-	flag.BoolVar(&disablePkgUp, "n", false, "Disable pkgup index (fallback to index.txt)")
 	flag.BoolVar(&forceSnapshot, "s", false, "Force checking snapshot directory for upgrades")
 	flag.BoolVar(&verbose, "v", false, "Show verbose logging information")
 	flag.BoolVar(&debug, "d", false, "Show debug logging information")
@@ -271,52 +247,73 @@ func main() {
 	var allPkgs PkgList
 	var sysInfo SysInfo
 
-	if !disablePkgUp {
-		sysInfo = getSystemInfo()
+	sysInfo = getSystemInfo()
 
-		pkgupUrl := os.Getenv("PKGUP_URL")
-		var resp *http.Response
-		var url string
-		if pkgupUrl != "" {
-			url = replaceMirrorVars(fmt.Sprintf("%s/%%c/%%a/index.pkgup.gz", pkgupUrl), sysInfo)
-		} else {
-			url = fmt.Sprintf("%s/index.pkgup.gz", mirror)
-		}
-		resp, err = http.Get(url)
-		checkAndExit(err)
-		defer resp.Body.Close()
-
-		switch resp.StatusCode {
-		case 200:
-			// grab body
-			r, err := gzip.NewReader(resp.Body)
-			checkAndExit(err)
-			bodyBytes, err := ioutil.ReadAll(r)
-			checkAndExit(err)
-			allPkgs = parseObsdPkgUpList(string(bodyBytes))
-		case 404:
-			fmt.Fprintf(os.Stderr, "Unable to locate pkgup index at '%s'.\nTry '%s -n' to disable pkgup index.\n", url, os.Args[0])
-			os.Exit(1)
-		default:
-			fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
-			os.Exit(1)
-		}
+	pkgUpBaseUrl := os.Getenv("PKGUP_URL")
+	var resp *http.Response
+	var pkgUpIndexUrl string
+	if pkgUpBaseUrl != "" {
+		pkgUpIndexUrl = replaceMirrorVars(fmt.Sprintf("%s/%%c/%%a/index.pkgup.gz", pkgUpBaseUrl), sysInfo)
+	} else {
+		pkgUpIndexUrl = fmt.Sprintf("%s/index.pkgup.gz", mirror)
 	}
-	// if we didn't find the "new style" package list yet, fallback to old style
-	if len(allPkgs) == 0 {
-		resp, err := http.Get(fmt.Sprintf("%s/index.txt", mirror))
+
+	// grab pkgup index
+	var pkgUpQuirksDateString string
+	resp, err = http.Get(pkgUpIndexUrl)
+	checkAndExit(err)
+
+	switch resp.StatusCode {
+	case 200:
+		// grab body
+		r, err := gzip.NewReader(resp.Body)
 		checkAndExit(err)
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 200 {
-			fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
-			os.Exit(1)
-		}
-
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		bodyBytes, err := ioutil.ReadAll(r)
 		checkAndExit(err)
+		resp.Body.Close()
 
-		allPkgs = parseIndexToPkgList(string(bodyBytes))
+		// get quirks timestamp from pkgUp
+		quirksEndIndex := bytes.IndexByte(bodyBytes, '\n')
+		pkgUpQuirksDateString = string(bodyBytes[:quirksEndIndex])
+		// now parse the actual package list
+		allPkgs = parseObsdPkgUpList(string(bodyBytes[quirksEndIndex:]))
+	case 404:
+		fmt.Fprintf(os.Stderr, "unable to locate pkgup index at '%s'.\nTry '%s -n' to disable pkgup index.\n", pkgUpIndexUrl, os.Args[0])
+		os.Exit(1)
+	default:
+		fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
+		os.Exit(1)
+	}
+
+	// grab mirror quirks
+	indexString, err := openbsd.GetIndexTxt(mirror)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(1)
+	}
+	mirrorQuirksSignifyBlock, err := openbsd.GetQuirksSignifyBlockFromIndex(mirror, indexString)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(1)
+	}
+
+	// and parse the quirks date
+	mirrorQuirksDateString, err := openbsd.GetSignifyTimestampFromSignifyBlock(mirrorQuirksSignifyBlock)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(1)
+	}
+
+	pkgUpQuirksDate, err := time.Parse(openbsd.SignifyTimeFormat, pkgUpQuirksDateString)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error parsing pkgUp quirks date %s: %s\n", pkgUpQuirksDateString, err)
+		os.Exit(1)
+	}
+
+	mirrorQuirksDate, err := time.Parse(openbsd.SignifyTimeFormat, mirrorQuirksDateString)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error parsing mirror quirks date %s: %s\n", mirrorQuirksDateString, err)
+		os.Exit(1)
 	}
 
 	if verbose {
@@ -356,18 +353,17 @@ func main() {
 				}
 
 				// check for version bump
-				versionComparisonResult = compareVersionString(bestVersionMatch.version, remoteVersion.version)
-				if versionComparisonResult == 1 {
+				versionComparisonResult = bestVersionMatch.version.Compare(remoteVersion.version)
+				if versionComparisonResult == -1 {
 					bestVersionMatch = remoteVersion
-				} else if versionComparisonResult == 0 && installedVersion.hash != remoteVersion.hash {
+				} else if versionComparisonResult == 0 && installedVersion.signature != remoteVersion.signature {
 					// check for same-version/different signature
 					bestVersionMatch = remoteVersion
 				}
-
 			}
 
 			// did we find an upgrade?
-			if bestVersionMatch != installedVersion {
+			if !bestVersionMatch.Equals(installedVersion) {
 				var index string
 				if installedVersion.isBranch {
 					index = fmt.Sprintf("%s%%%s", name, installedVersion.pkgpath)
@@ -386,6 +382,14 @@ func main() {
 
 	if verbose {
 		fmt.Fprintf(os.Stderr, "parse took: %f seconds\n", float64(time.Now().Sub(start))/float64(time.Second))
+	}
+
+	if !pkgUpQuirksDate.Equal(mirrorQuirksDate) {
+		if pkgUpQuirksDate.After(mirrorQuirksDate) {
+			fmt.Fprintf(os.Stderr, "\nWARNING: pkgup index appears to be newer than packages on configured mirror.\n")
+		} else {
+			fmt.Fprintf(os.Stderr, "\nWARNING: pkgup index appears to be older than packages on configured mirror\n")
+		}
 	}
 
 	if len(updateList) == 0 {
