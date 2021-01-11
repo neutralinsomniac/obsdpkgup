@@ -5,16 +5,18 @@ import (
 	"compress/gzip"
 	"flag"
 	"fmt"
-	"github.com/neutralinsomniac/obsdpkgup/openbsd"
-	version2 "github.com/neutralinsomniac/obsdpkgup/openbsd/version"
 	"io/ioutil"
 	"net/http"
-	os "os"
+	"os"
 	"os/exec"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/neutralinsomniac/obsdpkgup/openbsd"
+	version2 "github.com/neutralinsomniac/obsdpkgup/openbsd/version"
 
 	"suah.dev/protect"
 )
@@ -85,7 +87,7 @@ func parseLocalPkgInfoToPkgList() PkgList {
 	files, err := ioutil.ReadDir(pkgDbPath)
 	checkAndExit(err)
 
-	pkgpathRe := regexp.MustCompilePOSIX(`^@comment pkgpath=([^ ,]+).*$`)
+	pkgpathRe := regexp.MustCompilePOSIX(`^@comment pkgpath=([^ ]+).*$`)
 	isBranchRe := regexp.MustCompilePOSIX(`^@option is-branch$`)
 
 	for _, file := range files {
@@ -215,10 +217,14 @@ func getMirror() string {
 	}
 }
 
+var pkgpathVersionRE = regexp.MustCompile(`^.*/.*/([^ ,]+).*$`)
+
 var cronMode bool
 var forceSnapshot bool
 var verbose bool
 var debug bool
+
+var currentIndexFormatVersion = 1
 
 func main() {
 	start := time.Now()
@@ -263,20 +269,15 @@ func main() {
 	resp, err = http.Get(pkgUpIndexUrl)
 	checkAndExit(err)
 
+	var pkgUpBytes []byte
 	switch resp.StatusCode {
 	case 200:
 		// grab body
 		r, err := gzip.NewReader(resp.Body)
 		checkAndExit(err)
-		bodyBytes, err := ioutil.ReadAll(r)
+		pkgUpBytes, err = ioutil.ReadAll(r)
 		checkAndExit(err)
 		resp.Body.Close()
-
-		// get quirks timestamp from pkgUp
-		quirksEndIndex := bytes.IndexByte(bodyBytes, '\n')
-		pkgUpQuirksDateString = string(bodyBytes[:quirksEndIndex])
-		// now parse the actual package list
-		allPkgs = parseObsdPkgUpList(string(bodyBytes[quirksEndIndex:]))
 	case 404:
 		fmt.Fprintf(os.Stderr, "unable to locate pkgup index at '%s'.\n", pkgUpIndexUrl)
 		os.Exit(1)
@@ -284,6 +285,35 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unexpected HTTP response: %d\n", resp.StatusCode)
 		os.Exit(1)
 	}
+
+	// get + check version
+	indexFormatVersionEndIndex := bytes.IndexByte(pkgUpBytes, '\n')
+	indexFormatVersionStr := string(pkgUpBytes[:indexFormatVersionEndIndex])
+	pkgUpBytes = pkgUpBytes[indexFormatVersionEndIndex+1:]
+	indexFormatVersion, err := strconv.Atoi(indexFormatVersionStr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "expected index version %d, got: %s\n", currentIndexFormatVersion, indexFormatVersionStr)
+		os.Exit(1)
+	}
+
+	if indexFormatVersion != currentIndexFormatVersion {
+		fmt.Fprintf(os.Stderr, "expected index version %d, got: %d\n", currentIndexFormatVersion, indexFormatVersion)
+		if currentIndexFormatVersion < indexFormatVersion {
+			fmt.Fprintf(os.Stderr, "please update obsdpkgup and try again\n", currentIndexFormatVersion, indexFormatVersion)
+		} else {
+			fmt.Fprintf(os.Stderr, "wait for remote mirror to update to the current pkgup index format and try again later\n", currentIndexFormatVersion, indexFormatVersion)
+		}
+
+		os.Exit(1)
+	}
+
+	// get quirks timestamp from pkgUp
+	quirksEndIndex := bytes.IndexByte(pkgUpBytes, '\n')
+	pkgUpQuirksDateString = string(pkgUpBytes[:quirksEndIndex])
+	pkgUpBytes = pkgUpBytes[quirksEndIndex+1:]
+
+	// now parse the actual package list
+	allPkgs = parseObsdPkgUpList(string(pkgUpBytes))
 
 	// grab mirror quirks
 	indexString, err := openbsd.GetIndexTxt(mirror)
@@ -343,7 +373,6 @@ func main() {
 
 		// check all versions to find upgrades
 		for _, installedVersion := range installedVersions {
-			versionComparisonResult := 0
 			bestVersionMatch := installedVersion
 		NEXTVERSION:
 			for _, remoteVersion := range allPkgs[name] {
@@ -353,7 +382,7 @@ func main() {
 				}
 
 				// check for version bump
-				versionComparisonResult = bestVersionMatch.version.Compare(remoteVersion.version)
+				var versionComparisonResult = bestVersionMatch.version.Compare(remoteVersion.version)
 				if versionComparisonResult == -1 {
 					bestVersionMatch = remoteVersion
 				} else if versionComparisonResult == 0 && installedVersion.signature != remoteVersion.signature {

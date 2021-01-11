@@ -63,6 +63,8 @@ var arch string
 var version string
 var showProgress bool
 
+var indexFormatVersion = 1
+
 var pkgpathRe = regexp.MustCompilePOSIX(`^@comment pkgpath=([^ ]+).*$`)
 
 func main() {
@@ -108,6 +110,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
+
+	// write index format version
+	fmt.Println(indexFormatVersion)
+
+	// write quirks date
 	fmt.Println(quirksDate)
 
 	lines := strings.Split(indexString, "\n")
