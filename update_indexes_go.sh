@@ -1,29 +1,17 @@
-PKGUP_DIR=/var/www/pkgup
+#!/usr/bin/env sh
 
-ARCH=amd64
-VERSION=snapshots
-echo $ARCH:$VERSION
-genpkgup -p -a $ARCH -v $VERSION > index.pkgup
-gzip index.pkgup
-mv index.pkgup.gz $PKGUP_DIR/$VERSION/$ARCH/
+pkgup_dir=/var/www/pkgup
 
-ARCH=aarch64
-VERSION=snapshots
-echo $ARCH:$VERSION
-genpkgup -p -a $ARCH -v $VERSION > index.pkgup
-gzip index.pkgup
-mv index.pkgup.gz $PKGUP_DIR/$VERSION/$ARCH/
-
-ARCH=amd64
-VERSION=6.8
-echo $ARCH:$VERSION
-genpkgup -p -a $ARCH -v $VERSION > index.pkgup
-gzip index.pkgup
-mv index.pkgup.gz $PKGUP_DIR/$VERSION/$ARCH/
-
-ARCH=aarch64
-VERSION=6.8
-echo $ARCH:$VERSION
-genpkgup -p -a $ARCH -v $VERSION > index.pkgup
-gzip index.pkgup
-mv index.pkgup.gz $PKGUP_DIR/$VERSION/$ARCH/
+for arch in amd64 aarch64
+do
+    for version in snapshots 6.8
+    do
+        echo $arch:$version
+        if genpkgup -a $arch -v $version > index.pkgup
+        then
+            rm -f index.pkgup.gz
+            gzip index.pkgup
+            mv index.pkgup.gz $pkgup_dir/$version/$arch/
+        fi
+    done
+done
