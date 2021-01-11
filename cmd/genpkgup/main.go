@@ -63,7 +63,7 @@ var arch string
 var version string
 var showProgress bool
 
-var pkgpathRe = regexp.MustCompilePOSIX(`^@comment pkgpath=([^ ,]+).*$`)
+var pkgpathRe = regexp.MustCompilePOSIX(`^@comment pkgpath=([^ ]+).*$`)
 
 func main() {
 	flag.StringVar(&mirror, "m", "https://cdn.openbsd.org/pub/OpenBSD", "Mirror URL")

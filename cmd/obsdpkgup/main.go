@@ -9,7 +9,7 @@ import (
 	version2 "github.com/neutralinsomniac/obsdpkgup/openbsd/version"
 	"io/ioutil"
 	"net/http"
-	"os"
+	os "os"
 	"os/exec"
 	"regexp"
 	"sort"
