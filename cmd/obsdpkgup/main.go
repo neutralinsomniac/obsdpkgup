@@ -366,7 +366,8 @@ func main() {
 			if !bestVersionMatch.Equals(installedVersion) {
 				var index string
 				if installedVersion.isBranch {
-					index = fmt.Sprintf("%s%%%s", name, installedVersion.pkgpath)
+					ver := pkgpathVersionRE.FindStringSubmatch(installedVersion.pkgpath)[1]
+					index = fmt.Sprintf("%s%%%s", name, ver)
 				} else {
 					index = name
 				}
