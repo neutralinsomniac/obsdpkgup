@@ -416,9 +416,9 @@ func main() {
 
 	if !pkgUpQuirksDate.Equal(mirrorQuirksDate) {
 		if pkgUpQuirksDate.After(mirrorQuirksDate) {
-			fmt.Fprintf(os.Stderr, "\nWARNING: pkgup index appears to be newer than packages on configured mirror.\n")
+			fmt.Fprintf(os.Stderr, "WARNING: pkgup index appears to be newer than packages on configured mirror.\n")
 		} else {
-			fmt.Fprintf(os.Stderr, "\nWARNING: pkgup index appears to be older than packages on configured mirror\n")
+			fmt.Fprintf(os.Stderr, "WARNING: pkgup index appears to be older than packages on configured mirror\n")
 		}
 	}
 
