@@ -299,9 +299,9 @@ func main() {
 	if indexFormatVersion != currentIndexFormatVersion {
 		fmt.Fprintf(os.Stderr, "expected index version %d, got: %d\n", currentIndexFormatVersion, indexFormatVersion)
 		if currentIndexFormatVersion < indexFormatVersion {
-			fmt.Fprintf(os.Stderr, "please update obsdpkgup and try again\n", currentIndexFormatVersion, indexFormatVersion)
+			fmt.Fprintf(os.Stderr, "please update obsdpkgup and try again\n")
 		} else {
-			fmt.Fprintf(os.Stderr, "wait for remote mirror to update to the current pkgup index format and try again later\n", currentIndexFormatVersion, indexFormatVersion)
+			fmt.Fprintf(os.Stderr, "wait for remote mirror to update to the current pkgup index format and try again later\n")
 		}
 
 		os.Exit(1)

@@ -44,7 +44,7 @@ func GenerateSignatureFromContents(contents []byte) string {
 		parts := strings.Split(dep, "-")
 		flavors := make([]string, 0, len(parts))
 		var i int
-		for i = len(parts)-1; !numRe.MatchString(parts[i]); i-- {
+		for i = len(parts) - 1; !numRe.MatchString(parts[i]); i-- {
 			flavors = append(flavors, parts[i])
 		}
 		// flavors are sorted in the signature even if they aren't in +CONTENTS
