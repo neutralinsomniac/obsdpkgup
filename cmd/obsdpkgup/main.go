@@ -393,14 +393,11 @@ func main() {
 
 			// did we find an upgrade?
 			if !bestVersionMatch.Equals(installedVersion) {
-				var index string
-				if installedVersion.isBranch {
-					ver := pkgpathVersionRE.FindStringSubmatch(installedVersion.pkgpath)[1]
-					index = fmt.Sprintf("%s%%%s", name, ver)
-				} else {
-					index = name
+				fullVersionWithFlavor := bestVersionMatch.fullName
+				if bestVersionMatch.flavor != "" {
+					fullVersionWithFlavor = fmt.Sprintf("%s-%s", fullVersionWithFlavor, bestVersionMatch.flavor)
 				}
-				updateList[index] = true
+				updateList[fullVersionWithFlavor] = true
 				fmt.Fprintf(os.Stderr, "%s->%s", installedVersion.fullName, bestVersionMatch.version)
 				if installedVersion.flavor != "" {
 					fmt.Fprintf(os.Stderr, "-%s", installedVersion.flavor)
@@ -428,7 +425,7 @@ func main() {
 		}
 	} else {
 		fmt.Fprintf(os.Stderr, "\nto upgrade:\n")
-		fmt.Printf("pkg_add -u")
+		fmt.Printf("pkg_add -r -Dupdatedepends")
 		if sysInfo.snapshot == true {
 			fmt.Printf(" -Dsnap")
 		}
