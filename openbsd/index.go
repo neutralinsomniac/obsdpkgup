@@ -7,7 +7,7 @@ import (
 )
 
 func GetIndexTxt(mirror string) (string, error) {
-	indexUrl := fmt.Sprintf("%s/index.txt", mirror)
+	indexUrl := fmt.Sprintf("%sindex.txt", mirror)
 	resp, err := http.Get(indexUrl)
 	if err != nil {
 		return "", err

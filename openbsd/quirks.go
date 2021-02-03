@@ -16,7 +16,7 @@ func GetQuirksSignifyBlockFromIndex(baseUrl, index string) (string, error) {
 		s := strings.Fields(line)
 		pkgName := s[9]
 		if strings.HasPrefix(pkgName, "quirks-") {
-			url := fmt.Sprintf("%s/%s", baseUrl, pkgName)
+			url := fmt.Sprintf("%s%s", baseUrl, pkgName)
 			resp, err := http.Get(url)
 			if err != nil {
 				return "", fmt.Errorf("error fetching quirks (%s): %s", url, err.Error())
@@ -32,7 +32,7 @@ func GetQuirksSignifyBlockFromIndex(baseUrl, index string) (string, error) {
 
 				return gz.Comment, nil
 			case 404:
-				return "", fmt.Errorf("404 while downloading quirks: %s\n", url)
+				return "", fmt.Errorf("404 while downloading quirks: \"%s\"\n", url)
 			default:
 				return "", fmt.Errorf("unexpected HTTP response (%d) while downloading quirks: %s\n", resp.StatusCode, url)
 			}

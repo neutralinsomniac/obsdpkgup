@@ -166,19 +166,27 @@ func getSystemInfo() SysInfo {
 	return sysInfo
 }
 
+var protocolRe = regexp.MustCompile(`://`)
+var repeatingSlashRe = regexp.MustCompile(`/+`)
+
 func replaceMirrorVars(mirror string, sysInfo SysInfo) string {
-	if sysInfo.snapshot {
-		mirror = strings.ReplaceAll(mirror, "%m", "/pub/OpenBSD/%c/packages/%a/")
-	} else {
-		mirror = strings.ReplaceAll(mirror, "%m", "/pub/OpenBSD/%c/packages-stable/%a/")
-	}
-	mirror = strings.ReplaceAll(mirror, "%a", sysInfo.arch)
-	mirror = strings.ReplaceAll(mirror, "%v", sysInfo.version)
+	mirror = strings.ReplaceAll(mirror, "%m", "/pub/OpenBSD/%c/packages/%a/")
+
 	if sysInfo.snapshot {
 		mirror = strings.ReplaceAll(mirror, "%c", "snapshots")
 	} else {
+		mirror = strings.ReplaceAll(mirror, "%c/packages", "%c/packages-stable")
 		mirror = strings.ReplaceAll(mirror, "%c", sysInfo.version)
 	}
+
+	mirror = strings.ReplaceAll(mirror, "%a", sysInfo.arch)
+	mirror = strings.ReplaceAll(mirror, "%v", sysInfo.version)
+
+	// strip duplicate /'s to work around a bug on some of the mirrors
+	s := protocolRe.Split(mirror, -1)
+	s[1] = repeatingSlashRe.ReplaceAllString(s[1], "/")
+
+	mirror = strings.Join(s, "://")
 
 	return mirror
 }
@@ -202,19 +210,11 @@ func getMirror() string {
 	installurlBytes, err := ioutil.ReadFile("/etc/installurl")
 	if err == nil {
 		installurl := strings.TrimSpace(string(installurlBytes))
-		if sysInfo.snapshot {
-			return replaceMirrorVars(fmt.Sprintf("%s/%%c/packages/%%a/", installurl), sysInfo)
-		} else {
-			return replaceMirrorVars(fmt.Sprintf("%s/%%c/packages-stable/%%a/", installurl), sysInfo)
-		}
+		return replaceMirrorVars(fmt.Sprintf("%s/%%c/packages/%%a/", installurl), sysInfo)
 	}
 
 	// finally, fall back to cdn
-	if sysInfo.snapshot {
-		return replaceMirrorVars("https://cdn.openbsd.org/pub/OpenBSD/%%c/packages/%%a/", sysInfo)
-	} else {
-		return replaceMirrorVars("https://cdn.openbsd.org/pub/OpenBSD/%%c/packages-stable/%%a/", sysInfo)
-	}
+	return replaceMirrorVars("https://cdn.openbsd.org/pub/OpenBSD/%c/packages/%a/", sysInfo)
 }
 
 var pkgpathVersionRE = regexp.MustCompile(`^.*/.*/([^ ,]+).*$`)
