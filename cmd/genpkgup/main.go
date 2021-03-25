@@ -87,9 +87,9 @@ func main() {
 
 	var url string
 	if version == "snapshots" {
-		url = fmt.Sprintf("%s/%s/packages/%s", mirror, version, arch)
+		url = fmt.Sprintf("%s/%s/packages/%s/", mirror, version, arch)
 	} else {
-		url = fmt.Sprintf("%s/%s/packages-stable/%s", mirror, version, arch)
+		url = fmt.Sprintf("%s/%s/packages-stable/%s/", mirror, version, arch)
 	}
 
 	// retrieve the index.txt first
