@@ -394,11 +394,12 @@ func main() {
 			// did we find an upgrade?
 			if !bestVersionMatch.Equals(installedVersion) {
 				var index string
+				index = name
 				if installedVersion.isBranch {
-					ver := pkgpathVersionRE.FindStringSubmatch(installedVersion.pkgpath)[1]
-					index = fmt.Sprintf("%s%%%s", name, ver)
-				} else {
-					index = name
+					res := pkgpathVersionRE.FindStringSubmatch(installedVersion.pkgpath)
+					if len(res) == 2 {
+						index = fmt.Sprintf("%s%%%s", name, res[1])
+					}
 				}
 				updateList[index] = true
 				fmt.Fprintf(os.Stderr, "%s->%s", installedVersion.fullName, bestVersionMatch.version)
