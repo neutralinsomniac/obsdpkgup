@@ -12,7 +12,7 @@ up to date
 
 ## Installation
 
-`GO111MODULE=on go get -u github.com/neutralinsomniac/obsdpkgup/cmd/obsdpkgup`
+`go install github.com/neutralinsomniac/obsdpkgup/cmd/obsdpkgup@latest`
 
 ## Usage
 
