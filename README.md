@@ -79,6 +79,4 @@ aren't incremented, **obsdpkgup** can't tell that an upgrade occurred. Thus, a
 new index file format was created that contains a hash of a package's
 "signature" (the same thing that the pkgtools themselves check) and stores it
 in a secondary index file (called index.pkgup.gz). This file can be easily
-generated in an existing mirror directory with the
-`generate_pkgup_from_current_dir.sh` script, or generated externally to a
-mirror with the `generate_pkgup_from_mirror.sh` script.
+generated from an existing mirror using the `genpkgup` command included in this repo.
